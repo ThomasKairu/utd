@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const isProd = process.env.NODE_ENV === 'production';
+const isCustomDomain = process.env.CUSTOM_DOMAIN === 'true';
 
 const nextConfig: NextConfig = {
   output: 'export',
@@ -11,9 +12,9 @@ const nextConfig: NextConfig = {
   eslint: {
     dirs: ['src'],
   },
-  // Configure correct asset paths for GitHub Pages static hosting
-  basePath: isProd ? '/pulse-website' : '', // Replace with your repo-name if different
-  assetPrefix: isProd ? '/pulse-website/' : '',
+  // Configure paths based on deployment type
+  basePath: isProd && !isCustomDomain ? '/utd' : '',
+  assetPrefix: isProd && !isCustomDomain ? '/utd/' : '',
 };
 
 export default nextConfig;
