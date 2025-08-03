@@ -34,7 +34,7 @@ export function SearchBar({
         
         const { data: articles, error } = await supabase
           .from('articles')
-          .select('id, title, slug, summary, category, published_at, image_url')
+          .select('*')
           .or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,content.ilike.%${searchQuery}%`)
           .order('published_at', { ascending: false })
           .limit(10);
@@ -181,7 +181,7 @@ export function SearchBar({
                       {article.category}
                     </span>
                     <span className="ml-2">
-                      {new Date(article.published_at).toLocaleDateString()}
+                      {article.published_at ? new Date(article.published_at).toLocaleDateString() : 'No date'}
                     </span>
                   </div>
                 </a>

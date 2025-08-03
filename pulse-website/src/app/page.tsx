@@ -139,6 +139,18 @@ export default function HomePage() {
     fetchData();
   }, []);
 
+  // Helper function to convert database article to component props
+  const convertArticle = (article: Article) => ({
+    id: article.id,
+    title: article.title,
+    slug: article.slug,
+    summary: article.summary || undefined,
+    category: article.category,
+    image_url: article.image_url || undefined,
+    published_at: article.published_at || article.created_at || new Date().toISOString(),
+    source_url: article.source_url || undefined,
+  });
+
   const filteredArticles = activeCategory === 'All' 
     ? articles 
     : articles.filter(article => article.category === activeCategory);
@@ -204,7 +216,10 @@ export default function HomePage() {
               {featuredArticle && (
                 <div className="mb-12">
                   <h2 className="text-2xl font-bold mb-6">Featured Story</h2>
-                  <ArticleCard article={featuredArticle} variant="featured" />
+                  <ArticleCard 
+                    article={convertArticle(featuredArticle)} 
+                    variant="featured" 
+                  />
                 </div>
               )}
 
@@ -219,7 +234,7 @@ export default function HomePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {recentArticles.map((article, index) => (
                     <React.Fragment key={article.id}>
-                      <ArticleCard article={article} variant="default" />
+                      <ArticleCard article={convertArticle(article)} variant="default" />
                       {(index + 1) % 2 === 0 && (
                         <div className="md:col-span-2 flex justify-center my-4">
                           <AdPlaceholder
@@ -271,7 +286,7 @@ export default function HomePage() {
             {filteredArticles.slice(0, 3).map(article => (
               <ArticleCard
                 key={article.id}
-                article={article}
+                article={convertArticle(article)}
                 variant="compact"
               />
             ))}

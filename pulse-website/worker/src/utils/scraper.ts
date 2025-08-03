@@ -34,7 +34,7 @@ export async function scrapeArticleContent(
     
   } catch (error) {
     console.error(`❌ Scraping failed for ${url}:`, error);
-    throw new Error(`Failed to scrape content from ${url}: ${error.message}`);
+    throw new Error(`Failed to scrape content from ${url}: ${(error as Error).message}`);
   }
 }
 
@@ -91,7 +91,7 @@ async function extractWithCustomParser(
   return {
     title: cleanText(title),
     content: content,
-    imageUrl: imageUrl || undefined,
+    imageUrl: imageUrl,
   };
 }
 

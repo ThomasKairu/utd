@@ -12,7 +12,7 @@ export interface ProcessingStats {
 /**
  * Get last processed timestamp from KV
  */
-export async function getLastProcessedTimestamp(kv: KVNamespace): Promise<number> {
+export async function getLastProcessedTimestamp(kv: any): Promise<number> {
   try {
     const timestamp = await kv.get('last_processed_timestamp');
     if (timestamp) {
@@ -36,7 +36,7 @@ export async function getLastProcessedTimestamp(kv: KVNamespace): Promise<number
  * Update last processed timestamp in KV
  */
 export async function updateLastProcessedTimestamp(
-  kv: KVNamespace,
+  kv: any,
   timestamp: number
 ): Promise<void> {
   try {
@@ -56,7 +56,7 @@ export async function updateLastProcessedTimestamp(
 /**
  * Get processing statistics from KV
  */
-export async function getProcessingStats(kv: KVNamespace): Promise<ProcessingStats> {
+export async function getProcessingStats(kv: any): Promise<ProcessingStats> {
   try {
     const stats = await kv.get('processing_stats', 'json');
     return stats || {
@@ -80,7 +80,7 @@ export async function getProcessingStats(kv: KVNamespace): Promise<ProcessingSta
  * Update processing statistics in KV
  */
 export async function updateProcessingStats(
-  kv: KVNamespace,
+  kv: any,
   stats: ProcessingStats
 ): Promise<void> {
   try {
@@ -99,7 +99,7 @@ export async function updateProcessingStats(
  * Log processing run
  */
 export async function logProcessingRun(
-  kv: KVNamespace,
+  kv: any,
   runId: string,
   stats: {
     articlesProcessed: number;
@@ -142,7 +142,7 @@ export async function logProcessingRun(
  * Get recent run logs
  */
 export async function getRecentRunLogs(
-  kv: KVNamespace,
+  kv: any,
   limit: number = 10
 ): Promise<any[]> {
   try {
@@ -169,7 +169,7 @@ export async function getRecentRunLogs(
  * Store error for debugging
  */
 export async function storeError(
-  kv: KVNamespace,
+  kv: any,
   error: Error,
   context: string
 ): Promise<void> {

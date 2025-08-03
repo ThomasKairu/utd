@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import SearchBar from '@/components/ui/SearchBar';
 import ArticleCard from '@/components/ui/ArticleCard';
@@ -14,17 +14,8 @@ interface SearchFilters {
   sortBy: 'relevance' | 'date';
 }
 
-interface SearchResponse {
-  articles: Article[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
 
@@ -66,7 +57,7 @@ export default function SearchPage() {
       
       let queryBuilder = supabase
         .from('articles')
-        .select('id, title, slug, summary, category, published_at, image_url', { count: 'exact' });
+        .select('*', { count: 'exact' });
 
       // Apply search query
       queryBuilder = queryBuilder.or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%,content.ilike.%${searchQuery}%`);
@@ -292,7 +283,16 @@ export default function SearchPage() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                   {results.map(article => (
-                    <ArticleCard key={article.id} article={article} />
+                    <ArticleCard 
+                      key={article.id} 
+                      article={{
+                        ...article,
+                        summary: article.summary || undefined,
+                        image_url: article.image_url || undefined,
+                        source_url: article.source_url || undefined,
+                        published_at: article.published_at || new Date().toISOString(),
+                      }} 
+                    />
                   ))}
                 </div>
 
@@ -377,5 +377,18 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <span className="ml-3 text-gray-600">Loading search...</span>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }

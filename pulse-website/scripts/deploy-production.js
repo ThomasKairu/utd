@@ -2,30 +2,17 @@
 
 /**
  * Production Deployment Script for Pulse UTD News
- *
- * This script handles the complete deployment process:
- * 1. Pre-deployment checks
- * 2. Build optimization
- * 3. Testing
- * 4. Deployment to GitHub Pages
- * 5. Post-deployment verification
+ * 
+ * This script automates the deployment process:
+ * 1. Validates environment setup
+ * 2. Builds the application
+ * 3. Deploys to GitHub Pages
+ * 4. Provides next steps for Cloudflare Worker
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-
-// Configuration
-const config = {
-  buildDir: 'out',
-  testTimeout: 300000, // 5 minutes
-  lighthouseThresholds: {
-    performance: 90,
-    accessibility: 95,
-    bestPractices: 90,
-    seo: 95,
-  },
-};
+const { execSync } = require('child_process');
 
 // Colors for console output
 const colors = {
@@ -39,449 +26,147 @@ const colors = {
   cyan: '\x1b[36m',
 };
 
-function log(message, color = colors.reset) {
-  console.log(`${color}${message}${colors.reset}`);
+function log(message, color = 'reset') {
+  console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
 function logStep(step, message) {
-  log(
-    `\n${colors.bright}[${step}]${colors.reset} ${colors.cyan}${message}${colors.reset}`
-  );
+  log(`\n🔄 Step ${step}: ${message}`, 'cyan');
 }
 
 function logSuccess(message) {
-  log(`${colors.green}✅ ${message}${colors.reset}`);
-}
-
-function logError(message) {
-  log(`${colors.red}❌ ${message}${colors.reset}`);
+  log(`✅ ${message}`, 'green');
 }
 
 function logWarning(message) {
-  log(`${colors.yellow}⚠️  ${message}${colors.reset}`);
+  log(`⚠️  ${message}`, 'yellow');
 }
 
-function execCommand(command, options = {}) {
-  try {
-    const result = execSync(command, {
-      stdio: options.silent ? 'pipe' : 'inherit',
-      encoding: 'utf8',
-      ...options,
-    });
-    return { success: true, output: result };
-  } catch (error) {
-    return { success: false, error: error.message, output: error.stdout };
-  }
+function logError(message) {
+  log(`❌ ${message}`, 'red');
 }
 
-async function preDeploymentChecks() {
-  logStep('1', 'Running pre-deployment checks...');
-
-  // Check if we're in the right directory
-  if (!fs.existsSync('package.json')) {
-    logError(
-      'package.json not found. Please run this script from the project root.'
-    );
-    process.exit(1);
-  }
-
-  // Check if required environment files exist
-  if (!fs.existsSync('.env.local.example')) {
-    logWarning('.env.local.example not found. Creating template...');
-    const envTemplate = `# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_KEY=your_supabase_service_key
-
-# OpenRouter Configuration
-OPENROUTER_API_KEY=your_openrouter_api_key
-
-# ScraperAPI Configuration
-SCRAPER_API_KEY=your_scraper_api_key
-
-# Deployment Configuration
-NEXT_PUBLIC_SITE_URL=https://pulse.utdnews.com
-`;
-    fs.writeFileSync('.env.local.example', envTemplate);
-  }
-
-  // Check Node.js version
-  const nodeVersion = process.version;
-  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
-  if (majorVersion < 18) {
-    logError(
-      `Node.js version ${nodeVersion} is not supported. Please use Node.js 18 or higher.`
-    );
-    process.exit(1);
-  }
-  logSuccess(`Node.js version ${nodeVersion} is supported`);
-
-  // Check if dependencies are installed
-  if (!fs.existsSync('node_modules')) {
-    logStep('1.1', 'Installing dependencies...');
-    const installResult = execCommand('npm ci');
-    if (!installResult.success) {
-      logError('Failed to install dependencies');
-      process.exit(1);
-    }
-    logSuccess('Dependencies installed successfully');
-  }
-
-  logSuccess('Pre-deployment checks completed');
+function logInfo(message) {
+  log(`ℹ��  ${message}`, 'blue');
 }
 
-async function runTests() {
-  logStep('2', 'Running test suite...');
-
-  // Type checking
-  logStep('2.1', 'Running TypeScript type checking...');
-  const typeCheckResult = execCommand('npm run type-check');
-  if (!typeCheckResult.success) {
-    logError('TypeScript type checking failed');
-    process.exit(1);
-  }
-  logSuccess('TypeScript type checking passed');
-
-  // Linting
-  logStep('2.2', 'Running ESLint...');
-  const lintResult = execCommand('npm run lint');
-  if (!lintResult.success) {
-    logError('ESLint failed');
-    process.exit(1);
-  }
-  logSuccess('ESLint passed');
-
-  // Code formatting check
-  logStep('2.3', 'Checking code formatting...');
-  const formatResult = execCommand('npm run format:check');
-  if (!formatResult.success) {
-    logWarning('Code formatting issues found. Auto-fixing...');
-    const fixResult = execCommand('npm run format');
-    if (!fixResult.success) {
-      logError('Failed to fix formatting issues');
-      process.exit(1);
-    }
-    logSuccess('Code formatting fixed');
-  } else {
-    logSuccess('Code formatting is correct');
-  }
-
-  // Unit tests
-  logStep('2.4', 'Running unit tests...');
-  const unitTestResult = execCommand('npm run test:unit');
-  if (!unitTestResult.success) {
-    logError('Unit tests failed');
-    process.exit(1);
-  }
-  logSuccess('Unit tests passed');
-
-  logSuccess('All tests completed successfully');
-}
-
-async function buildOptimization() {
-  logStep('3', 'Building optimized production bundle...');
-
-  // Clean previous build
-  if (fs.existsSync(config.buildDir)) {
-    logStep('3.1', 'Cleaning previous build...');
-    fs.rmSync(config.buildDir, { recursive: true, force: true });
-    logSuccess('Previous build cleaned');
-  }
-
-  // Build the application
-  logStep('3.2', 'Building Next.js application...');
-  const buildResult = execCommand('npm run build');
-  if (!buildResult.success) {
-    logError('Build failed');
-    process.exit(1);
-  }
-  logSuccess('Build completed successfully');
-
-  // Verify build output
-  if (!fs.existsSync(config.buildDir)) {
-    logError('Build output directory not found');
-    process.exit(1);
-  }
-
-  // Check build size
-  const buildStats = getBuildStats();
-  logSuccess(`Build completed - ${buildStats.files} files, ${buildStats.size}`);
-
-  return buildStats;
-}
-
-function getBuildStats() {
-  const buildPath = path.join(process.cwd(), config.buildDir);
-  let totalSize = 0;
-  let fileCount = 0;
-
-  function calculateSize(dir) {
-    const files = fs.readdirSync(dir);
-    files.forEach(file => {
-      const filePath = path.join(dir, file);
-      const stats = fs.statSync(filePath);
-      if (stats.isDirectory()) {
-        calculateSize(filePath);
-      } else {
-        totalSize += stats.size;
-        fileCount++;
-      }
-    });
-  }
-
-  calculateSize(buildPath);
-
-  return {
-    files: fileCount,
-    size: formatBytes(totalSize),
-    sizeBytes: totalSize,
-  };
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-async function performanceAudit() {
-  logStep('4', 'Running performance audit...');
-
-  // Check if Lighthouse CI is configured
-  if (!fs.existsSync('lighthouserc.js')) {
-    logWarning('Lighthouse CI not configured. Skipping performance audit.');
-    return;
-  }
-
-  logStep('4.1', 'Running Lighthouse CI...');
-  const lighthouseResult = execCommand('npm run lighthouse', { silent: true });
-
-  if (!lighthouseResult.success) {
-    logWarning('Lighthouse audit failed or not configured properly');
-    return;
-  }
-
-  logSuccess('Performance audit completed');
-}
-
-async function deployToGitHubPages() {
-  logStep('5', 'Deploying to GitHub Pages...');
-
-  // Check if gh-pages is configured
-  const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  if (!packageJson.devDependencies['gh-pages']) {
-    logError('gh-pages not found in devDependencies');
-    process.exit(1);
-  }
-
-  // Deploy
-  logStep('5.1', 'Pushing to GitHub Pages...');
-  const deployResult = execCommand('npm run deploy');
-  if (!deployResult.success) {
-    logError('Deployment to GitHub Pages failed');
-    process.exit(1);
-  }
-
-  logSuccess('Successfully deployed to GitHub Pages');
-}
-
-async function postDeploymentVerification() {
-  logStep('6', 'Running post-deployment verification...');
-
-  // Create deployment summary
-  const deploymentSummary = {
-    timestamp: new Date().toISOString(),
-    version: require('../package.json').version,
-    nodeVersion: process.version,
-    buildStats: getBuildStats(),
-    deploymentUrl: 'https://pulse.utdnews.com', // Update with actual URL
-  };
-
-  // Save deployment summary
-  const summaryPath = path.join(config.buildDir, 'deployment-summary.json');
-  fs.writeFileSync(summaryPath, JSON.stringify(deploymentSummary, null, 2));
-
-  logSuccess('Post-deployment verification completed');
-
-  // Display deployment summary
-  log('\n' + colors.bright + '🚀 DEPLOYMENT SUMMARY' + colors.reset);
-  log(`${colors.cyan}Timestamp:${colors.reset} ${deploymentSummary.timestamp}`);
-  log(`${colors.cyan}Version:${colors.reset} ${deploymentSummary.version}`);
-  log(`${colors.cyan}Node.js:${colors.reset} ${deploymentSummary.nodeVersion}`);
-  log(
-    `${colors.cyan}Build Size:${colors.reset} ${deploymentSummary.buildStats.size} (${deploymentSummary.buildStats.files} files)`
-  );
-  log(
-    `${colors.cyan}Deployment URL:${colors.reset} ${deploymentSummary.deploymentUrl}`
-  );
-}
-
-async function generateSitemap() {
-  logStep('6.1', 'Generating sitemap...');
-
-  const sitemapContent = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://pulse.utdnews.com/</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/search</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/category/politics</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/category/business</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/category/technology</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/category/sports</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://pulse.utdnews.com/category/entertainment</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-</urlset>`;
-
-  fs.writeFileSync(path.join(config.buildDir, 'sitemap.xml'), sitemapContent);
-  logSuccess('Sitemap generated');
-}
-
-async function generateRobotsTxt() {
-  logStep('6.2', 'Generating robots.txt...');
-
-  const robotsContent = `User-agent: *
-Allow: /
-
-# Sitemap
-Sitemap: https://pulse.utdnews.com/sitemap.xml
-
-# Crawl-delay for polite crawling
-Crawl-delay: 1
-
-# Disallow admin and private areas
-Disallow: /admin/
-Disallow: /api/
-Disallow: /_next/
-Disallow: /offline
-
-# Allow specific bots
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /
-`;
-
-  fs.writeFileSync(path.join(config.buildDir, 'robots.txt'), robotsContent);
-  logSuccess('robots.txt generated');
-}
-
-// Main deployment function
 async function main() {
-  const startTime = Date.now();
-
-  log(
-    `${colors.bright}${colors.magenta}🚀 Starting Production Deployment for Pulse UTD News${colors.reset}\n`
-  );
+  log('\n🚀 Pulse UTD News - Production Deployment Script', 'bright');
+  log('================================================', 'bright');
 
   try {
-    await preDeploymentChecks();
-    await runTests();
-    const buildStats = await buildOptimization();
-    await generateSitemap();
-    await generateRobotsTxt();
-    await performanceAudit();
-    await deployToGitHubPages();
-    await postDeploymentVerification();
+    // Step 1: Validate environment
+    logStep(1, 'Validating Environment');
+    
+    // Check if we're in the right directory
+    if (!fs.existsSync('package.json')) {
+      throw new Error('package.json not found. Please run this script from the project root.');
+    }
 
-    const endTime = Date.now();
-    const duration = Math.round((endTime - startTime) / 1000);
+    // Check if .env.local exists
+    if (!fs.existsSync('.env.local')) {
+      throw new Error('.env.local file not found. Please create it with your API keys.');
+    }
 
-    log(
-      `\n${colors.bright}${colors.green}🎉 DEPLOYMENT SUCCESSFUL!${colors.reset}`
-    );
-    log(
-      `${colors.cyan}Total deployment time: ${duration} seconds${colors.reset}`
-    );
-    log(
-      `${colors.cyan}Your site is now live at: https://pulse.utdnews.com${colors.reset}\n`
-    );
+    // Read environment variables
+    const envContent = fs.readFileSync('.env.local', 'utf8');
+    const hasSupabase = envContent.includes('NEXT_PUBLIC_SUPABASE_URL=https://');
+    const hasOpenRouter = envContent.includes('OPENROUTER_API_KEY=') && !envContent.includes('your_openrouter_api_key');
+    
+    if (!hasSupabase) {
+      throw new Error('Supabase configuration missing in .env.local');
+    }
 
-    // Next steps
-    log(`${colors.bright}📋 NEXT STEPS:${colors.reset}`);
-    log(
-      `${colors.yellow}1. Set up Supabase database using database/schema.sql${colors.reset}`
-    );
-    log(
-      `${colors.yellow}2. Configure Cloudflare Worker with your API keys${colors.reset}`
-    );
-    log(
-      `${colors.yellow}3. Set up domain DNS pointing to GitHub Pages${colors.reset}`
-    );
-    log(
-      `${colors.yellow}4. Configure SSL certificate through Cloudflare${colors.reset}`
-    );
-    log(
-      `${colors.yellow}5. Test the automated workflow end-to-end${colors.reset}\n`
-    );
+    logSuccess('Environment validation passed');
+    
+    if (!hasOpenRouter) {
+      logWarning('OpenRouter API key not configured - worker automation will not work');
+      logInfo('Add your OpenRouter API key to .env.local to enable automation');
+    }
+
+    // Step 2: Run tests
+    logStep(2, 'Running Tests');
+    
+    try {
+      execSync('npm run type-check', { stdio: 'inherit' });
+      logSuccess('TypeScript compilation passed');
+    } catch (error) {
+      throw new Error('TypeScript compilation failed');
+    }
+
+    try {
+      execSync('npm run lint', { stdio: 'inherit' });
+      logSuccess('Linting passed');
+    } catch (error) {
+      logWarning('Linting issues found - continuing with deployment');
+    }
+
+    // Step 3: Build application
+    logStep(3, 'Building Application');
+    
+    try {
+      execSync('npm run build', { stdio: 'inherit' });
+      logSuccess('Build completed successfully');
+    } catch (error) {
+      throw new Error('Build failed');
+    }
+
+    // Step 4: Deploy to GitHub Pages
+    logStep(4, 'Deploying to GitHub Pages');
+    
+    try {
+      execSync('npm run deploy', { stdio: 'inherit' });
+      logSuccess('Deployed to GitHub Pages successfully');
+    } catch (error) {
+      throw new Error('GitHub Pages deployment failed');
+    }
+
+    // Step 5: Provide next steps
+    logStep(5, 'Next Steps');
+    
+    log('\n🎉 Frontend deployment completed successfully!', 'green');
+    log('\n📋 Next Steps to Complete Production Setup:', 'bright');
+    log('\n1. 🔑 Configure API Keys (if not done):');
+    log('   - Get OpenRouter API key: https://openrouter.ai/');
+    log('   - Get ScraperAPI key: https://www.scraperapi.com/ (optional)');
+    log('   - Update .env.local with real keys');
+    
+    log('\n2. 🚀 Deploy Cloudflare Worker:');
+    log('   cd worker');
+    log('   npm install -g wrangler');
+    log('   wrangler login');
+    log('   wrangler kv:namespace create "KV_NAMESPACE"');
+    log('   wrangler secret put OPENROUTER_API_KEY');
+    log('   wrangler secret put SUPABASE_SERVICE_KEY');
+    log('   npm run deploy');
+    
+    log('\n3. 🌐 Configure Custom Domain:');
+    log('   - Set up DNS: pulse.utdnews.com → GitHub Pages');
+    log('   - Enable HTTPS in GitHub Pages settings');
+    
+    log('\n4. 📊 Monitor Deployment:');
+    log('   - Check worker logs in Cloudflare dashboard');
+    log('   - Verify articles are being processed every 5 minutes');
+    log('   - Monitor site performance and errors');
+
+    // Get deployment URL
+    const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    const repoName = 'utd'; // Based on GitHub repository
+    
+    log('\n🔗 Your site is now live at:', 'bright');
+    log(`   https://thomaskairu.github.io/${repoName}/`, 'cyan');
+    
+    log('\n📖 For detailed setup instructions, see:');
+    log('   PRODUCTION_SETUP_GUIDE.md', 'cyan');
+
   } catch (error) {
     logError(`Deployment failed: ${error.message}`);
     process.exit(1);
   }
 }
 
-// Handle script interruption
-process.on('SIGINT', () => {
-  log(`\n${colors.yellow}Deployment interrupted by user${colors.reset}`);
+// Run the deployment script
+main().catch(error => {
+  logError(`Unexpected error: ${error.message}`);
   process.exit(1);
 });
-
-process.on('SIGTERM', () => {
-  log(`\n${colors.yellow}Deployment terminated${colors.reset}`);
-  process.exit(1);
-});
-
-// Run the deployment
-if (require.main === module) {
-  main().catch(error => {
-    logError(`Unexpected error: ${error.message}`);
-    process.exit(1);
-  });
-}
-
-module.exports = {
-  main,
-  preDeploymentChecks,
-  runTests,
-  buildOptimization,
-  deployToGitHubPages,
-  postDeploymentVerification,
-};

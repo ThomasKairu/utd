@@ -27,11 +27,22 @@ import {
 } from './utils/kv';
 
 interface Env {
-  KV_NAMESPACE: KVNamespace;
+  KV_NAMESPACE: any; // KVNamespace type from @cloudflare/workers-types
   OPENROUTER_API_KEY: string;
   SCRAPER_API_KEY?: string; // Optional - only for fallback
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
+}
+
+// Cloudflare Worker types
+interface ScheduledController {
+  scheduledTime: number;
+  cron: string;
+}
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
 }
 
 export default {
@@ -134,7 +145,7 @@ export default {
 
         } catch (error) {
           errorCount++;
-          const errorMessage = `Failed to process "${article.title}": ${error.message}`;
+          const errorMessage = `Failed to process "${article.title}": ${(error as Error).message}`;
           console.error(`❌ ${errorMessage}`);
           errors.push(errorMessage);
 
@@ -189,7 +200,7 @@ export default {
         successCount,
         errorCount: errorCount + 1,
         duration: Date.now() - startTime,
-        errors: [...errors, `Critical error: ${error.message}`],
+        errors: [...errors, `Critical error: ${(error as Error).message}`],
       });
 
       throw error;
@@ -233,7 +244,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           status: 'error',
-          error: error.message,
+          error: (error as Error).message,
         }), {
           status: 500,
           headers: {
@@ -268,7 +279,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           error: 'Failed to trigger processing',
-          message: error.message,
+          message: (error as Error).message,
         }), {
           status: 500,
           headers: {

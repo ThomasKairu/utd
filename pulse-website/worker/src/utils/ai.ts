@@ -43,23 +43,24 @@ Here is the article:
 Title: ${article.title}
 Content: ${scrapedContent.content}`;
 
-  // Try primary model first, then fallback
+  // Try primary model first, then fallback with different API keys
   const models = [
-    'z-ai/glm-4.5-air:free',
-    'google/gemma-3-27b-it:free'
-  ];
-
-  const apiKeys = [
-    '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',
-    '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'
+    { 
+      model: 'z-ai/glm-4.5-air:free', 
+      key: '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'
+    },
+    { 
+      model: 'google/gemma-3-27b-it:free', 
+      key: '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'
+    }
   ];
 
   for (let i = 0; i < models.length; i++) {
     try {
-      const response = await callOpenRouter(prompt, models[i], apiKeys[i]);
+      const response = await callOpenRouter(prompt, models[i].model, models[i].key);
       return parseAIResponse(response, article, scrapedContent.imageUrl);
     } catch (error) {
-      console.warn(`Model ${models[i]} failed:`, error);
+      console.warn(`Model ${models[i].model} failed:`, error);
       if (i === models.length - 1) {
         throw new Error('All AI models failed to process the article');
       }

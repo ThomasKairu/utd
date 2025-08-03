@@ -25,10 +25,7 @@ export async function fetchAndFilterArticles(lastTimestamp: number): Promise<Art
           'User-Agent': 'PulseUTDNews/1.0 (+https://pulse.utdnews.com)',
           'Accept': 'application/rss+xml, application/xml, text/xml',
         },
-        cf: {
-          cacheTtl: 300, // Cache for 5 minutes
-          cacheEverything: true,
-        },
+        // Note: cf property is Cloudflare-specific and may not be available in all environments
       });
 
       if (!response.ok) {
@@ -98,13 +95,18 @@ function parseRSSFeed(xmlText: string): Article[] {
       const guid = extractXMLContent(itemContent, 'guid') || link;
 
       if (title && link && pubDate) {
-        articles.push({
+        const article: Article = {
           title: cleanText(title),
           link: link.trim(),
           pubDate: normalizeDate(pubDate),
-          description: description ? cleanText(description) : undefined,
           guid: guid || link,
-        });
+        };
+        
+        if (description) {
+          article.description = cleanText(description);
+        }
+        
+        articles.push(article);
       }
     }
   } catch (error) {

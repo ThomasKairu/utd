@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { WifiIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { WifiIcon } from '@heroicons/react/24/outline';
+import RetryButton from './RetryButton';
 
 export const metadata: Metadata = {
   title: 'Offline - Pulse UTD News',
@@ -25,13 +26,7 @@ export default function OfflinePage() {
         </div>
 
         <div className="space-y-4">
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full flex items-center justify-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-          >
-            <ArrowPathIcon className="h-5 w-5 mr-2" />
-            Try Again
-          </button>
+          <RetryButton />
 
           <Link
             href="/"

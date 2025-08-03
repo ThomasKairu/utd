@@ -1,99 +1,91 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React from 'react';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Article, Category } from '@/types/database';
 import ArticleCard from '@/components/ui/ArticleCard';
 import Button from '@/components/common/Button';
 import AdPlaceholder from '@/components/common/AdPlaceholder';
 import Sidebar from '@/components/layout/Sidebar';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { createClient } from '@/utils/supabase/client';
+import LoadMoreButton from './LoadMoreButton';
 
-export default function CategoryPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  
-  const [category, setCategory] = useState<Category | null>(null);
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+// Generate static params for all categories
+export async function generateStaticParams() {
+  try {
+    const supabase = createClient();
+    const { data: categories } = await supabase
+      .from('categories')
+      .select('slug');
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!slug) return;
+    return categories?.map((category) => ({
+      slug: category.slug,
+    })) || [];
+  } catch (error) {
+    console.error('Error generating static params:', error);
+    return [];
+  }
+}
 
-      try {
-        const supabase = createClient();
-        
-        // Fetch the category
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('slug', slug)
-          .single();
+async function getCategoryData(slug: string): Promise<{ category: Category; articles: Article[]; allCategories: Category[] } | null> {
+  try {
+    const supabase = createClient();
+    
+    // Fetch the category
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('slug', slug)
+      .single();
 
-        if (categoryError || !categoryData) {
-          setNotFound(true);
-          return;
-        }
-
-        setCategory(categoryData);
-
-        // Fetch articles for this category
-        const { data: articlesData } = await supabase
-          .from('articles')
-          .select('*')
-          .eq('category', categoryData.name)
-          .order('published_at', { ascending: false });
-
-        if (articlesData) {
-          setArticles(articlesData);
-        }
-
-        // Fetch all categories for navigation
-        const { data: categoriesData } = await supabase
-          .from('categories')
-          .select('*')
-          .order('name');
-
-        if (categoriesData) {
-          setAllCategories(categoriesData);
-        }
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-        setNotFound(true);
-      } finally {
-        setIsLoading(false);
-      }
+    if (categoryError || !categoryData) {
+      return null;
     }
 
-    fetchData();
-  }, [slug]);
+    // Fetch articles for this category
+    const { data: articlesData } = await supabase
+      .from('articles')
+      .select('*')
+      .eq('category', categoryData.name)
+      .order('published_at', { ascending: false });
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    // Fetch all categories for navigation
+    const { data: categoriesData } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
+
+    return {
+      category: categoryData,
+      articles: articlesData || [],
+      allCategories: categoriesData || [],
+    };
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    return null;
+  }
+}
+
+export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const data = await getCategoryData(slug);
+  
+  if (!data) {
+    notFound();
   }
 
-  if (notFound || !category) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-text-primary mb-4">Category Not Found</h1>
-          <p className="text-text-secondary mb-6">The category you're looking for doesn't exist.</p>
-          <Link href="/">
-            <Button variant="primary">Back to Home</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const { category, articles, allCategories } = data;
+
+  // Helper function to convert database article to component props
+  const convertArticle = (article: Article) => ({
+    id: article.id,
+    title: article.title,
+    slug: article.slug,
+    summary: article.summary || undefined,
+    category: article.category,
+    image_url: article.image_url || undefined,
+    published_at: article.published_at || article.created_at || new Date().toISOString(),
+    source_url: article.source_url || undefined,
+  });
 
   const featuredArticles = articles.slice(0, 3);
   const remainingArticles = articles.slice(3);
@@ -205,7 +197,7 @@ export default function CategoryPage() {
                       {featuredArticles.map(article => (
                         <ArticleCard
                           key={article.id}
-                          article={article}
+                          article={convertArticle(article)}
                           variant="default"
                         />
                       ))}
@@ -227,7 +219,10 @@ export default function CategoryPage() {
                     <div className="space-y-6">
                       {remainingArticles.map((article, index) => (
                         <React.Fragment key={article.id}>
-                          <ArticleCard article={article} variant="horizontal" />
+                          <ArticleCard 
+                            article={convertArticle(article)} 
+                            variant="horizontal" 
+                          />
                           {/* Insert ad every 5 articles */}
                           {(index + 1) % 5 === 0 && (
                             <div className="flex justify-center my-6">
@@ -246,13 +241,7 @@ export default function CategoryPage() {
 
                 {/* Load More Button */}
                 <div className="text-center">
-                  <Button 
-                    variant="primary" 
-                    size="lg"
-                    onClick={() => console.log('Load more clicked')}
-                  >
-                    Load More {category.name} Articles
-                  </Button>
+                  <LoadMoreButton categoryName={category.name} />
                 </div>
               </>
             )}

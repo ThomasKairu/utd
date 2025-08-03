@@ -1,67 +1,72 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Article } from '@/types/database';
-import Button from '@/components/common/Button';
 import AdPlaceholder from '@/components/common/AdPlaceholder';
 import Sidebar from '@/components/layout/Sidebar';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { createClient } from '@/utils/supabase/client';
+import SocialShare from './SocialShare';
 
-export default function ArticlePage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  
-  const [article, setArticle] = useState<Article | null>(null);
-  const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+// Generate static params for all articles
+export async function generateStaticParams() {
+  try {
+    const supabase = createClient();
+    const { data: articles } = await supabase
+      .from('articles')
+      .select('slug');
 
-  useEffect(() => {
-    async function fetchArticle() {
-      if (!slug) return;
+    return articles?.map((article) => ({
+      slug: article.slug,
+    })) || [];
+  } catch (error) {
+    console.error('Error generating static params:', error);
+    return [];
+  }
+}
 
-      try {
-        const supabase = createClient();
-        
-        // Fetch the article
-        const { data: articleData, error: articleError } = await supabase
-          .from('articles')
-          .select('*')
-          .eq('slug', slug)
-          .single();
+async function getArticle(slug: string): Promise<{ article: Article; relatedArticles: Article[] } | null> {
+  try {
+    const supabase = createClient();
+    
+    // Fetch the article
+    const { data: articleData, error: articleError } = await supabase
+      .from('articles')
+      .select('*')
+      .eq('slug', slug)
+      .single();
 
-        if (articleError || !articleData) {
-          setNotFound(true);
-          return;
-        }
-
-        setArticle(articleData);
-
-        // Fetch related articles
-        const { data: relatedData } = await supabase
-          .from('articles')
-          .select('*')
-          .eq('category', articleData.category)
-          .neq('id', articleData.id)
-          .limit(3);
-
-        if (relatedData) {
-          setRelatedArticles(relatedData);
-        }
-      } catch (error) {
-        console.error('Failed to fetch article:', error);
-        setNotFound(true);
-      } finally {
-        setIsLoading(false);
-      }
+    if (articleError || !articleData) {
+      return null;
     }
 
-    fetchArticle();
-  }, [slug]);
+    // Fetch related articles
+    const { data: relatedData } = await supabase
+      .from('articles')
+      .select('*')
+      .eq('category', articleData.category)
+      .neq('id', articleData.id)
+      .limit(3);
+
+    return {
+      article: articleData,
+      relatedArticles: relatedData || [],
+    };
+  } catch (error) {
+    console.error('Failed to fetch article:', error);
+    return null;
+  }
+}
+
+export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const data = await getArticle(slug);
+  
+  if (!data) {
+    notFound();
+  }
+
+  const { article, relatedArticles } = data;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -72,28 +77,6 @@ export default function ArticlePage() {
       minute: '2-digit',
     });
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (notFound || !article) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-text-primary mb-4">Article Not Found</h1>
-          <p className="text-text-secondary mb-6">The article you're looking for doesn't exist.</p>
-          <Link href="/">
-            <Button variant="primary">Back to Home</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -181,29 +164,10 @@ export default function ArticlePage() {
                 </div>
 
                 {/* Social Share Buttons */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs">Share:</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(article.title)}&url=${encodeURIComponent(window.location.href)}`;
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    Twitter
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    Facebook
-                  </Button>
-                </div>
+                <SocialShare 
+                  title={article.title} 
+                  url={`https://pulse.utdnews.com/article/${article.slug}`} 
+                />
               </div>
             </header>
 

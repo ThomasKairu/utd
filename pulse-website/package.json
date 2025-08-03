@@ -19,9 +19,12 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:db": "node scripts/test-database.js",
+    "test:apis": "node scripts/test-apis.js",
     "test:all": "npm run test && npm run test:e2e",
     "deploy": "npm run build && npx gh-pages -d out",
-    "deploy:worker": "cd worker && npm run deploy",
+    "deploy:production": "node scripts/deploy-production.js",
+    "deploy:worker": "node scripts/deploy-worker.js",
+    "test:worker": "node scripts/test-worker.js",
     "setup:db": "echo 'Please run database/schema.sql in your Supabase dashboard'",
     "lighthouse": "lhci autorun",
     "analyze": "cross-env ANALYZE=true npm run build"
