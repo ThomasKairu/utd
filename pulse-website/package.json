@@ -25,6 +25,8 @@
     "test:all": "npm run test && npm run test:e2e",
     "deploy": "npm run build:github && npx gh-pages -d out",
     "deploy:custom": "npm run build:custom",
+    "deploy:github-pages": "bash deploy-github-pages.sh",
+    "deploy:github-pages-win": "deploy-github-pages.bat",
     "deploy:production": "node scripts/deploy-production.js",
     "deploy:worker": "node scripts/deploy-worker.js",
     "test:worker": "node scripts/test-worker.js",
