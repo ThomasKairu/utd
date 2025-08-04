@@ -12,19 +12,34 @@ import LoadMoreButton from './LoadMoreButton';
 
 // Generate static params for all categories
 export async function generateStaticParams() {
-  try {
-    const supabase = createClient();
-    const { data: categories } = await supabase
-      .from('categories')
-      .select('slug');
+  // For static build, return predefined categories
+  const staticCategories = [
+    'politics',
+    'business', 
+    'technology',
+    'sports',
+    'entertainment'
+  ];
 
-    return categories?.map((category) => ({
-      slug: category.slug,
-    })) || [];
+  try {
+    // Only try to fetch from Supabase if we have real credentials
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && 
+        !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('dummy')) {
+      const supabase = createClient();
+      const { data: categories } = await supabase
+        .from('categories')
+        .select('slug');
+
+      return categories?.map((category) => ({
+        slug: category.slug,
+      })) || staticCategories.map(slug => ({ slug }));
+    }
   } catch (error) {
     console.error('Error generating static params:', error);
-    return [];
   }
+
+  // Fallback to static categories
+  return staticCategories.map(slug => ({ slug }));
 }
 
 async function getCategoryData(slug: string): Promise<{ category: Category; articles: Article[]; allCategories: Category[] } | null> {

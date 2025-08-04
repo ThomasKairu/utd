@@ -11,19 +11,34 @@ import SocialShare from './SocialShare';
 
 // Generate static params for all articles
 export async function generateStaticParams() {
-  try {
-    const supabase = createClient();
-    const { data: articles } = await supabase
-      .from('articles')
-      .select('slug');
+  // For static build, return predefined article slugs
+  const staticArticles = [
+    'kenya-digital-identity-system-2024',
+    'kenyan-fintech-50m-series-b-2024',
+    'nairobi-quantum-computing-center-2024',
+    'kenya-marathon-triple-victory-2024',
+    'kenyan-films-cannes-recognition-2024'
+  ];
 
-    return articles?.map((article) => ({
-      slug: article.slug,
-    })) || [];
+  try {
+    // Only try to fetch from Supabase if we have real credentials
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && 
+        !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('dummy')) {
+      const supabase = createClient();
+      const { data: articles } = await supabase
+        .from('articles')
+        .select('slug');
+
+      return articles?.map((article) => ({
+        slug: article.slug,
+      })) || staticArticles.map(slug => ({ slug }));
+    }
   } catch (error) {
     console.error('Error generating static params:', error);
-    return [];
   }
+
+  // Fallback to static articles
+  return staticArticles.map(slug => ({ slug }));
 }
 
 async function getArticle(slug: string): Promise<{ article: Article; relatedArticles: Article[] } | null> {
