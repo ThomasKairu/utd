@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[617],{3617:(e,t,s)=>{s.d(t,{createClient:()=>r});var u=s(3865);function r(){return(0,u.createBrowserClient)("https://dummy.supabase.co","dummy_key")}}}]);

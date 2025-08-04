@@ -1,4 +1,22 @@
-User-agent: *
+User-Agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /_next/
+Disallow: /static/
 
+User-Agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+User-Agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+Host: https://www.pulsenews.publicvm.com
 Sitemap: https://www.pulsenews.publicvm.com/sitemap.xml
