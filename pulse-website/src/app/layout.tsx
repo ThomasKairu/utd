@@ -6,10 +6,10 @@ import { ThemeProvider, themeScript } from '@/contexts/ThemeContext';
 import ServiceWorkerProvider from '@/components/common/ServiceWorkerProvider';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://pulse.utdnews.com'),
-  title: 'Pulse UTD News - Latest News from Kenya and Beyond',
+  metadataBase: new URL('https://www.pulsenews.publicvm.com'),
+  title: 'Pulse News - Latest News from Kenya and Beyond',
   description:
-    'Stay informed with Pulse UTD News – your trusted source for the latest news and insights from Kenya and around the world. Comprehensive coverage of politics, business, technology, sports, and entertainment.',
+    'Stay informed with Pulse News – your trusted source for the latest news and insights from Kenya and around the world. Comprehensive coverage of politics, business, technology, sports, and entertainment.',
   keywords: [
     'Kenya news',
     'latest news',
@@ -18,34 +18,41 @@ export const metadata: Metadata = {
     'technology',
     'sports',
     'entertainment',
+    'African news',
+    'breaking news',
   ],
-  authors: [{ name: 'Pulse UTD News Team' }],
-  creator: 'Pulse UTD News',
-  publisher: 'Pulse UTD News',
+  authors: [{ name: 'Pulse News Editorial Team' }],
+  creator: 'Pulse News',
+  publisher: 'Pulse News',
   robots: 'index, follow',
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://pulse.utdnews.com',
-    siteName: 'Pulse UTD News',
-    title: 'Pulse UTD News - Latest News from Kenya and Beyond',
+    url: 'https://www.pulsenews.publicvm.com',
+    siteName: 'Pulse News',
+    title: 'Pulse News - Latest News from Kenya and Beyond',
     description:
-      'Stay informed with Pulse UTD News – your trusted source for the latest news and insights from Kenya and around the world.',
+      'Stay informed with Pulse News – your trusted source for the latest news and insights from Kenya and around the world.',
     images: [
       {
         url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Pulse UTD News',
+        alt: 'Pulse News',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pulse UTD News - Latest News from Kenya and Beyond',
+    title: 'Pulse News - Latest News from Kenya and Beyond',
     description:
-      'Stay informed with Pulse UTD News – your trusted source for the latest news and insights from Kenya and around the world.',
+      'Stay informed with Pulse News – your trusted source for the latest news and insights from Kenya and around the world.',
     images: ['/og-image.jpg'],
+    creator: '@pulsenews',
+    site: '@pulsenews',
+  },
+  alternates: {
+    canonical: 'https://www.pulsenews.publicvm.com',
   },
 };
 

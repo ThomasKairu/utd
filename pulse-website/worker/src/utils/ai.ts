@@ -47,11 +47,11 @@ Content: ${scrapedContent.content}`;
   const models = [
     { 
       model: 'z-ai/glm-4.5-air:free', 
-      key: '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'
+      key: process.env.OPENROUTER_API_KEY || ''
     },
     { 
       model: 'google/gemma-3-27b-it:free', 
-      key: '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'
+      key: process.env.OPENROUTER_API_KEY_FALLBACK || process.env.OPENROUTER_API_KEY || ''
     }
   ];
 

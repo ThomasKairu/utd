@@ -80,7 +80,7 @@ wrangler kv:namespace create KV_NAMESPACE --preview
 
 # Set secrets
 wrangler secret put OPENROUTER_API_KEY
-# Enter: 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
+# Enter your OpenRouter API key
 
 wrangler secret put SUPABASE_SERVICE_KEY
 # Enter your Supabase service role key
@@ -92,8 +92,8 @@ wrangler deploy
 ### 🔑 API Keys Configuration
 
 #### OpenRouter API Keys ✅
-- **Primary**: `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`
-- **Secondary**: `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`
+- **Primary**: `[REDACTED - Set via environment variable]`
+- **Secondary**: `[REDACTED - Set via environment variable]`
 
 #### Supabase Configuration ✅
 - **URL**: `https://lnmrpwmtvscsczslzvec.supabase.co`

@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Metadata } from 'next';
 import { Article, Category } from '@/types/database';
 import ArticleCard from '@/components/ui/ArticleCard';
 import Button from '@/components/common/Button';
@@ -63,6 +64,89 @@ async function getCategoryData(slug: string): Promise<{ category: Category; arti
     console.error('Failed to fetch data:', error);
     return null;
   }
+}
+
+// Generate metadata for SEO
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const data = await getCategoryData(slug);
+  
+  if (!data) {
+    return {
+      title: 'Category Not Found | Pulse News',
+      description: 'The requested category could not be found.',
+    };
+  }
+
+  const { category, articles } = data;
+  const baseUrl = 'https://www.pulsenews.publicvm.com';
+  const categoryUrl = `${baseUrl}/category/${category.slug}`;
+  
+  const description = category.description || 
+    `Latest ${category.name.toLowerCase()} news from Kenya and around the world. Stay updated with breaking news, analysis, and insights.`;
+
+  const latestArticle = articles[0];
+
+  return {
+    title: `${category.name} News | Pulse News`,
+    description,
+    keywords: [
+      category.name,
+      `${category.name} news`,
+      'Kenya news',
+      'breaking news',
+      'latest news',
+      'African news',
+      `${category.name.toLowerCase()} updates`,
+    ].join(', '),
+    authors: [{ name: 'Pulse News Editorial Team' }],
+    publisher: 'Pulse News',
+    category: category.name,
+    openGraph: {
+      title: `${category.name} News | Pulse News`,
+      description,
+      url: categoryUrl,
+      siteName: 'Pulse News',
+      images: latestArticle?.image_url ? [
+        {
+          url: latestArticle.image_url,
+          width: 1200,
+          height: 630,
+          alt: `Latest ${category.name} news`,
+        }
+      ] : [],
+      locale: 'en_US',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${category.name} News | Pulse News`,
+      description,
+      images: latestArticle?.image_url ? [latestArticle.image_url] : [],
+      creator: '@pulsenews',
+      site: '@pulsenews',
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    alternates: {
+      canonical: categoryUrl,
+    },
+    other: {
+      'article:section': category.name,
+      'article:tag': category.name,
+      'news:section': category.name,
+      'news:keywords': `${category.name}, Kenya, News`,
+    },
+  };
 }
 
 export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {

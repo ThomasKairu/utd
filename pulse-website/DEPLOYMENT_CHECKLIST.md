@@ -51,7 +51,7 @@ Replace the placeholder IDs with actual namespace IDs from step 4.
 ```bash
 # OpenRouter API key (required)
 wrangler secret put OPENROUTER_API_KEY
-# Enter: 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
+# Enter your OpenRouter API key
 
 # Supabase service key (required)
 wrangler secret put SUPABASE_SERVICE_KEY

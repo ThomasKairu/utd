@@ -2,6 +2,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Metadata } from 'next';
 import { Article } from '@/types/database';
 import AdPlaceholder from '@/components/common/AdPlaceholder';
 import Sidebar from '@/components/layout/Sidebar';
@@ -58,6 +59,91 @@ async function getArticle(slug: string): Promise<{ article: Article; relatedArti
   }
 }
 
+// Generate metadata for SEO
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const data = await getArticle(slug);
+  
+  if (!data) {
+    return {
+      title: 'Article Not Found | Pulse News',
+      description: 'The requested article could not be found.',
+    };
+  }
+
+  const { article } = data;
+  const baseUrl = 'https://www.pulsenews.publicvm.com';
+  const articleUrl = `${baseUrl}/article/${article.slug}`;
+  
+  // Extract first 160 characters for meta description
+  const description = article.summary || 
+    article.content.replace(/<[^>]*>/g, '').substring(0, 160) + '...';
+
+  return {
+    title: `${article.title} | Pulse News`,
+    description,
+    keywords: [
+      article.category,
+      'Kenya news',
+      'breaking news',
+      'latest news',
+      'African news',
+      ...article.title.split(' ').filter(word => word.length > 3)
+    ].join(', '),
+    authors: [{ name: 'Pulse News Editorial Team' }],
+    publisher: 'Pulse News',
+    category: article.category,
+    openGraph: {
+      title: article.title,
+      description,
+      url: articleUrl,
+      siteName: 'Pulse News',
+      images: article.image_url ? [
+        {
+          url: article.image_url,
+          width: 1200,
+          height: 630,
+          alt: article.title,
+        }
+      ] : [],
+      locale: 'en_US',
+      type: 'article',
+      publishedTime: article.published_at || article.created_at || undefined,
+      modifiedTime: article.updated_at || undefined,
+      section: article.category,
+      tags: [article.category, 'Kenya', 'News'],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: article.title,
+      description,
+      images: article.image_url ? [article.image_url] : [],
+      creator: '@pulsenews',
+      site: '@pulsenews',
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    alternates: {
+      canonical: articleUrl,
+    },
+    other: {
+      'article:published_time': article.published_at || article.created_at || '',
+      'article:modified_time': article.updated_at || '',
+      'article:section': article.category,
+      'article:tag': article.category,
+    },
+  };
+}
+
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const data = await getArticle(slug);
@@ -78,8 +164,104 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     });
   };
 
+  const baseUrl = 'https://www.pulsenews.publicvm.com';
+  const articleUrl = `${baseUrl}/article/${article.slug}`;
+  const description = article.summary || article.content.replace(/<[^>]*>/g, '').substring(0, 160) + '...';
+
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      {/* News Article JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'NewsArticle',
+            headline: article.title,
+            description: description,
+            image: article.image_url ? [article.image_url] : [],
+            datePublished: article.published_at || article.created_at || '',
+            dateModified: article.updated_at || article.created_at || '',
+            author: {
+              '@type': 'Organization',
+              name: 'Pulse News Editorial Team',
+              url: 'https://www.pulsenews.publicvm.com',
+            },
+            publisher: {
+              '@type': 'Organization',
+              name: 'Pulse News',
+              url: 'https://www.pulsenews.publicvm.com',
+              logo: {
+                '@type': 'ImageObject',
+                url: 'https://www.pulsenews.publicvm.com/logo.png',
+                width: 200,
+                height: 60,
+              },
+            },
+            mainEntityOfPage: {
+              '@type': 'WebPage',
+              '@id': articleUrl,
+            },
+            articleSection: article.category,
+            keywords: [article.category, 'Kenya', 'News', 'Africa'].join(', '),
+            url: articleUrl,
+            isAccessibleForFree: true,
+          }),
+        }}
+      />
+
+      {/* Breadcrumb JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Home',
+                item: 'https://www.pulsenews.publicvm.com',
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: article.category,
+                item: `https://www.pulsenews.publicvm.com/category/${article.category.toLowerCase()}`,
+              },
+              {
+                '@type': 'ListItem',
+                position: 3,
+                name: article.title,
+                item: articleUrl,
+              },
+            ],
+          }),
+        }}
+      />
+
+      {/* Organization JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'NewsMediaOrganization',
+            '@id': 'https://www.pulsenews.publicvm.com/#organization',
+            name: 'Pulse News',
+            url: 'https://www.pulsenews.publicvm.com',
+            logo: 'https://www.pulsenews.publicvm.com/logo.png',
+            sameAs: [
+              'https://www.facebook.com/pulsenews',
+              'https://twitter.com/pulsenews',
+              'https://www.linkedin.com/company/pulsenews',
+            ],
+          }),
+        }}
+      />
+      
+      <div className="min-h-screen bg-background">
       {/* Ad Bar */}
       <div className="bg-light-gray border-b border-medium-gray">
         <div className="container mx-auto px-4 h-24 flex items-center justify-center">
@@ -166,7 +348,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                 {/* Social Share Buttons */}
                 <SocialShare 
                   title={article.title} 
-                  url={`https://pulse.utdnews.com/article/${article.slug}`} 
+                  url={`https://www.pulsenews.publicvm.com/article/${article.slug}`} 
                 />
               </div>
             </header>
@@ -273,6 +455,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           </aside>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

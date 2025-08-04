@@ -162,7 +162,7 @@ function configureSecrets() {
   const secrets = [
     {
       name: 'OPENROUTER_API_KEY',
-      value: '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',
+      value: process.env.OPENROUTER_API_KEY || '',
       description: 'OpenRouter API key for AI processing'
     },
     {

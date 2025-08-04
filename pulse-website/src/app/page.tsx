@@ -171,8 +171,46 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Ad Bar Below Header */}
+    <>
+      {/* WebPage JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebPage',
+            '@id': 'https://www.pulsenews.publicvm.com/#webpage',
+            name: 'Pulse News - Latest News from Kenya and Beyond',
+            description: 'Stay informed with Pulse News – your trusted source for the latest news and insights from Kenya and around the world.',
+            url: 'https://www.pulsenews.publicvm.com',
+            lastReviewed: new Date().toISOString(),
+            reviewedBy: {
+              '@type': 'Organization',
+              name: 'Pulse News Editorial Team',
+            },
+          }),
+        }}
+      />
+
+      {/* Sitelinks Search Box JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            url: 'https://www.pulsenews.publicvm.com',
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: 'https://www.pulsenews.publicvm.com/search?q={search_term_string}',
+              'query-input': 'required name=search_term_string',
+            },
+          }),
+        }}
+      />
+
+      <div className="min-h-screen bg-background">
+        {/* Ad Bar Below Header */}
       <div className="bg-light-gray border-b border-medium-gray">
         <div className="container mx-auto px-4 h-24 flex items-center justify-center">
           <AdPlaceholder
@@ -293,6 +331,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

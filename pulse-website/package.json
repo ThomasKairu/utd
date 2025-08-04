@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:github": "cross-env NODE_ENV=production GITHUB_PAGES=true npm run build",
+    "build:custom": "cross-env NODE_ENV=production CUSTOM_DOMAIN=true npm run build",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
@@ -21,7 +23,8 @@
     "test:db": "node scripts/test-database.js",
     "test:apis": "node scripts/test-apis.js",
     "test:all": "npm run test && npm run test:e2e",
-    "deploy": "npm run build && npx gh-pages -d out",
+    "deploy": "npm run build:github && npx gh-pages -d out",
+    "deploy:custom": "npm run build:custom",
     "deploy:production": "node scripts/deploy-production.js",
     "deploy:worker": "node scripts/deploy-worker.js",
     "test:worker": "node scripts/test-worker.js",
@@ -36,6 +39,7 @@
     "@supabase/supabase-js": "^2.53.0",
     "ai": "^4.3.19",
     "next": "15.4.5",
+    "next-seo": "^6.8.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
