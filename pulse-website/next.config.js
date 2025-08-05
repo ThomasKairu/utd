@@ -5,9 +5,8 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Fix for GitHub Pages - use absolute paths for assets
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/utd' : '',
-  basePath: process.env.NODE_ENV === 'production' ? '/utd' : '',
+  // Removed assetPrefix and basePath for custom domain deployment
+  // Custom domains don't need these prefixes
   distDir: 'out',
   generateBuildId: () => 'build',
   experimental: {
