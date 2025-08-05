@@ -8,55 +8,6 @@ export interface SiteConfig {
 }
 
 export const SITE_CONFIGS: Record<string, SiteConfig> = {
-  'tuko.co.ke': {
-    hostname: 'tuko.co.ke',
-    titleSelector: 'h1.article-title, h1.entry-title, h1',
-    contentSelector: 'article .article-body, .entry-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.article-image img, .featured-image img',
-  },
-  'standardmedia.co.ke': {
-    hostname: 'standardmedia.co.ke',
-    titleSelector: 'h1.article-title, h1.headline, h1',
-    contentSelector: '.article-body, .story-body, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.article-image img, .story-image img',
-  },
-  'the-star.co.ke': {
-    hostname: 'the-star.co.ke',
-    titleSelector: 'h1.article-title, h1.entry-title, h1',
-    contentSelector: '.article-content, .entry-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.featured-image img, .article-img img',
-  },
-  'kenyans.co.ke': {
-    hostname: 'kenyans.co.ke',
-    titleSelector: 'h1.post-title, h1.entry-title, h1',
-    contentSelector: '.post-content, .entry-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.post-thumbnail img, .featured-image img',
-  },
-  'nation.africa': {
-    hostname: 'nation.africa',
-    titleSelector: 'h1.article-title, h1.headline, h1',
-    contentSelector: '.article-content, .story-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.article-image img, .story-image img',
-  },
-  'businessdailyafrica.com': {
-    hostname: 'businessdailyafrica.com',
-    titleSelector: 'h1.article-title, h1.headline, h1',
-    contentSelector: '.article-body, .story-body, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.article-image img, .story-image img',
-  },
-  'theeastafrican.co.ke': {
-    hostname: 'theeastafrican.co.ke',
-    titleSelector: 'h1.article-title, h1.headline, h1',
-    contentSelector: '.article-content, .story-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.article-image img, .story-image img',
-  },
   'ntvkenya.co.ke': {
     hostname: 'ntvkenya.co.ke',
     titleSelector: 'h1.article-title, h1.entry-title, h1',
@@ -64,26 +15,12 @@ export const SITE_CONFIGS: Record<string, SiteConfig> = {
     imageSelector: 'meta[property="og:image"]',
     fallbackImageSelector: '.featured-image img, .article-image img',
   },
-  'kbc.co.ke': {
-    hostname: 'kbc.co.ke',
-    titleSelector: 'h1.article-title, h1.post-title, h1',
-    contentSelector: '.article-content, .post-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.featured-image img, .post-thumbnail img',
-  },
-  'k24tv.co.ke': {
-    hostname: 'k24tv.co.ke',
+  'citizen.digital': {
+    hostname: 'citizen.digital',
     titleSelector: 'h1.article-title, h1.entry-title, h1',
     contentSelector: '.article-content, .entry-content, article',
     imageSelector: 'meta[property="og:image"]',
     fallbackImageSelector: '.featured-image img, .article-image img',
-  },
-  'pd.co.ke': {
-    hostname: 'pd.co.ke',
-    titleSelector: 'h1.article-title, h1.post-title, h1',
-    contentSelector: '.article-content, .post-content, article',
-    imageSelector: 'meta[property="og:image"]',
-    fallbackImageSelector: '.featured-image img, .post-thumbnail img',
   },
   'capitalfm.co.ke': {
     hostname: 'capitalfm.co.ke',
@@ -92,22 +29,32 @@ export const SITE_CONFIGS: Record<string, SiteConfig> = {
     imageSelector: 'meta[property="og:image"]',
     fallbackImageSelector: '.featured-image img, .article-image img',
   },
+  'pulselive.co.ke': {
+    hostname: 'pulselive.co.ke',
+    titleSelector: 'h1.article-title, h1.entry-title, h1',
+    contentSelector: '.article-content, .entry-content, article',
+    imageSelector: 'meta[property="og:image"]',
+    fallbackImageSelector: '.featured-image img, .article-image img',
+  },
+  'ghafla.com': {
+    hostname: 'ghafla.com',
+    titleSelector: 'h1.article-title, h1.entry-title, h1',
+    contentSelector: '.article-content, .entry-content, article',
+    imageSelector: 'meta[property="og:image"]',
+    fallbackImageSelector: '.featured-image img, .article-image img',
+  },
 };
 
-// RSS Feeds for the 12 sites with custom extractors (exact match)
+// RSS Feeds - Updated to only include working/reliable sources (Based on test results)
 export const RSS_FEEDS = [
-  'https://www.tuko.co.ke/rss/',
-  'https://www.standardmedia.co.ke/rss',
-  'https://www.the-star.co.ke/rss',
-  'https://www.kenyans.co.ke/rss',
-  'https://nation.africa/kenya/rss',
-  'https://www.businessdailyafrica.com/rss',
-  'https://www.theeastafrican.co.ke/rss',
+  // Confirmed working feeds (from test results)
   'https://ntvkenya.co.ke/feed',
-  'https://www.kbc.co.ke/feed',
-  'https://www.k24tv.co.ke/feed/',
-  'https://www.pd.co.ke/feed/',
   'https://www.capitalfm.co.ke/news/rss/',
+  
+  // Additional reliable feeds to test
+  'https://www.citizen.digital/rss',
+  'https://www.pulselive.co.ke/rss',
+  'https://www.ghafla.com/ke/feed/',
 ];
 
 // Content Categories
