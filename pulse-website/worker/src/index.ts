@@ -98,11 +98,15 @@ export default {
     console.log('🚀 Pulse News Worker started at:', new Date().toISOString());
     
     try {
-      // Step 1: Process RSS feeds
+      // Get last processed timestamp for date filtering
+      const lastProcessedTimestamp = await getLastProcessedTimestamp(env.KV_NAMESPACE);
+      console.log(`📅 Last processed timestamp: ${new Date(lastProcessedTimestamp).toISOString()}`);
+      
+      // Step 1: Process RSS feeds with date filtering
       console.log('📰 Processing RSS feeds...');
       const rssArticles = await processRSSFeeds(env);
       stats.rss_articles = rssArticles.length;
-      console.log(`📰 Processed ${rssArticles.length} articles from RSS feeds`);
+      console.log(`📰 Processed ${rssArticles.length} fresh articles from RSS feeds`);
 
       // Step 2: Process GNews API as fallback/supplement
       console.log('📡 Processing GNews API...');
@@ -117,8 +121,15 @@ export default {
       stats.unique_articles = uniqueArticles.length;
       console.log(`✨ ${uniqueArticles.length} unique articles after deduplication`);
 
+      if (uniqueArticles.length === 0) {
+        console.log('📭 No new articles to process');
+        return;
+      }
+
       // Step 4: Process with AI and save to database
       console.log('🤖 Processing articles with AI...');
+      let latestTimestamp = lastProcessedTimestamp;
+      
       for (const article of uniqueArticles) {
         try {
           const processedArticle = await processWithAI(article, env);
@@ -127,6 +138,11 @@ export default {
           const saved = await saveToSupabase(processedArticle, env);
           if (saved) {
             stats.saved_articles++;
+            
+            // Update latest timestamp
+            const articleTimestamp = new Date(article.published_at).getTime();
+            latestTimestamp = Math.max(latestTimestamp, articleTimestamp);
+            
             // Cache the URL to prevent reprocessing
             await env.KV_NAMESPACE.put(
               `processed:${hashUrl(article.source_url)}`, 
@@ -140,7 +156,12 @@ export default {
         }
       }
 
-      // Step 5: Update statistics and cleanup
+      // Step 5: Update timestamps and statistics
+      if (stats.saved_articles > 0) {
+        await updateLastProcessedTimestamp(env.KV_NAMESPACE, latestTimestamp);
+        console.log(`📅 Updated last processed timestamp to: ${new Date(latestTimestamp).toISOString()}`);
+      }
+      
       stats.execution_time = Date.now() - startTime;
       await updateProcessingStats(stats, env);
       
@@ -283,7 +304,7 @@ async function processRSSFeeds(env: Env): Promise<Article[]> {
 }
 
 /**
- * Parse RSS XML and extract articles
+ * Parse RSS XML and extract articles with strict date filtering
  */
 function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
   const articles: Article[] = [];
@@ -293,7 +314,9 @@ function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
     const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
     const items = xmlText.match(itemRegex) || [];
     
-    for (const item of items.slice(0, 10)) { // Limit to 10 articles per feed
+    console.log(`📡 Found ${items.length} items in RSS feed from ${sourceUrl}`);
+    
+    for (const item of items) { // Process all items, filter by date
       try {
         const title = extractXMLContent(item, 'title');
         const link = extractXMLContent(item, 'link');
@@ -301,18 +324,43 @@ function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
         const pubDate = extractXMLContent(item, 'pubDate');
         const imageUrl = extractImageFromContent(item);
         
-        if (title && link && description) {
-          articles.push({
-            title: cleanText(title),
-            slug: generateSlug(title),
-            content: cleanText(description),
-            summary: generateSummary(cleanText(description)),
-            category: categorizeContent(title + ' ' + description),
-            source_url: link,
-            image_url: imageUrl,
-            published_at: pubDate ? parseDate(pubDate) : new Date().toISOString()
-          });
+        // Skip if missing essential fields
+        if (!title || !link || !description) {
+          console.log(`⏭️ Skipping item - missing essential fields`);
+          continue;
         }
+        
+        // Skip if no publication date
+        if (!pubDate) {
+          console.log(`⏭️ Skipping "${title}" - no publication date`);
+          continue;
+        }
+        
+        // Parse and validate date
+        const parsedDate = parseAndValidateDate(pubDate);
+        if (!parsedDate) {
+          console.log(`⏭️ Skipping "${title}" - invalid date: ${pubDate}`);
+          continue;
+        }
+        
+        // Check if article is fresh (within last 24 hours)
+        if (!isRecentArticle(parsedDate)) {
+          console.log(`⏭️ Skipping "${title}" - too old: ${parsedDate.toISOString()}`);
+          continue;
+        }
+        
+        console.log(`✅ Fresh article: "${title}" - ${parsedDate.toISOString()}`);
+        
+        articles.push({
+          title: cleanText(title),
+          slug: generateSlug(title),
+          content: cleanText(description),
+          summary: generateSummary(cleanText(description)),
+          category: categorizeContent(title + ' ' + description),
+          source_url: link,
+          image_url: imageUrl,
+          published_at: parsedDate.toISOString()
+        });
       } catch (error) {
         console.error('Error parsing RSS item:', error);
       }
@@ -321,7 +369,51 @@ function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
     console.error('Error parsing RSS feed:', error);
   }
   
+  console.log(`📰 Extracted ${articles.length} fresh articles from ${sourceUrl}`);
   return articles;
+}
+
+/**
+ * Parse and validate publication date with timezone normalization
+ */
+function parseAndValidateDate(dateString: string): Date | null {
+  try {
+    // Clean up the date string
+    const cleanDateString = dateString.trim();
+    
+    // Try parsing the date
+    const date = new Date(cleanDateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    
+    // Check if date is reasonable (not in future, not too old)
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+    
+    if (date > oneHourFromNow || date < oneWeekAgo) {
+      console.warn(`Date out of reasonable range: ${date.toISOString()}`);
+      return null;
+    }
+    
+    return date;
+  } catch (error) {
+    console.error('Error parsing date:', dateString, error);
+    return null;
+  }
+}
+
+/**
+ * Check if article is recent (within configurable time window)
+ */
+function isRecentArticle(date: Date, hoursWindow: number = 24): boolean {
+  const now = new Date();
+  const cutoffTime = new Date(now.getTime() - hoursWindow * 60 * 60 * 1000);
+  
+  return date >= cutoffTime;
 }
 
 /**
@@ -880,6 +972,35 @@ async function saveToSupabase(article: Article, env: Env): Promise<boolean> {
   } catch (error) {
     console.error('Error saving to Supabase:', error);
     return false;
+  }
+}
+
+/**
+ * Get last processed timestamp for date filtering
+ */
+async function getLastProcessedTimestamp(kv: KVNamespace): Promise<number> {
+  try {
+    const timestamp = await kv.get('last_processed_timestamp');
+    if (timestamp) {
+      return parseInt(timestamp);
+    }
+    
+    // Default to 24 hours ago if no timestamp exists
+    return Date.now() - (24 * 60 * 60 * 1000);
+  } catch (error) {
+    console.error('Error getting last processed timestamp:', error);
+    return Date.now() - (24 * 60 * 60 * 1000);
+  }
+}
+
+/**
+ * Update last processed timestamp
+ */
+async function updateLastProcessedTimestamp(kv: KVNamespace, timestamp: number): Promise<void> {
+  try {
+    await kv.put('last_processed_timestamp', timestamp.toString());
+  } catch (error) {
+    console.error('Error updating last processed timestamp:', error);
   }
 }
 
