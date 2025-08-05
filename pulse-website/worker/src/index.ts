@@ -373,12 +373,21 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
         // Fetch full content from the article URL
         const fullContent = await fetchFullArticleContent(article.url);
         
+        // Use fallback strategy: scraped content -> GNews content -> description -> title
+        const finalContent = fullContent || article.content || article.description || article.title;
+        
+        // Skip if content is too short (likely just a link)
+        if (finalContent.length < 50) {
+          console.log(`⏭️ Skipping article with insufficient content: ${article.title}`);
+          continue;
+        }
+        
         articles.push({
           title: article.title,
           slug: generateSlug(article.title),
-          content: fullContent || article.content || article.description,
-          summary: article.description,
-          category: categorizeContent(article.title + ' ' + article.description),
+          content: finalContent,
+          summary: article.description || generateSummary(finalContent),
+          category: categorizeContent(article.title + ' ' + finalContent),
           source_url: article.url,
           image_url: article.image,
           published_at: new Date(article.publishedAt).toISOString()
@@ -400,13 +409,14 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
 }
 
 /**
- * Fetch full article content from URL
+ * Enhanced content extraction with multiple fallback strategies
  */
 async function fetchFullArticleContent(url: string): Promise<string | null> {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
       },
       cf: {
         cacheTtl: 3600, // Cache for 1 hour
@@ -418,37 +428,28 @@ async function fetchFullArticleContent(url: string): Promise<string | null> {
     
     const html = await response.text();
     
-    // Extract main content using common patterns
-    const contentPatterns = [
-      /<article[^>]*>([\s\S]*?)<\/article>/i,
-      /<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<div[^>]*class="[^"]*post[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<main[^>]*>([\s\S]*?)<\/main>/i,
-      /<div[^>]*class="[^"]*story[^"]*"[^>]*>([\s\S]*?)<\/div>/i
-    ];
+    // Strategy 1: Try <article> tag first
+    const articleContent = extractMainContent(html);
+    if (articleContent && articleContent.length > 200) {
+      return articleContent.substring(0, 2000);
+    }
     
-    for (const pattern of contentPatterns) {
-      const match = html.match(pattern);
-      if (match) {
-        let content = match[1];
-        
-        // Clean up the content
-        content = content
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove styles
-          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
-          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '') // Remove headers
-          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footers
-          .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '') // Remove sidebars
-          .replace(/<div[^>]*class="[^"]*ad[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '') // Remove ads
-          .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
-          .replace(/\s+/g, ' ') // Normalize whitespace
-          .trim();
-        
-        if (content.length > 200) {
-          return content.substring(0, 2000); // Limit content length
-        }
-      }
+    // Strategy 2: Try Open Graph or meta description
+    const metaDescription = extractMetaDescription(html);
+    if (metaDescription && metaDescription.length > 100) {
+      return metaDescription;
+    }
+    
+    // Strategy 3: Try main div patterns
+    const mainContent = extractMainDivContent(html);
+    if (mainContent && mainContent.length > 200) {
+      return mainContent.substring(0, 2000);
+    }
+    
+    // Strategy 4: Extract paragraphs
+    const paragraphContent = extractParagraphs(html);
+    if (paragraphContent && paragraphContent.length > 200) {
+      return paragraphContent.substring(0, 2000);
     }
     
     return null;
@@ -456,6 +457,113 @@ async function fetchFullArticleContent(url: string): Promise<string | null> {
     console.error('Error fetching full content:', error);
     return null;
   }
+}
+
+/**
+ * Extract main content using multiple strategies
+ */
+function extractMainContent(html: string): string | null {
+  const patterns = [
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*post-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<main[^>]*>([\s\S]*?)<\/main>/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      const content = cleanHTML(match[1]);
+      if (content.length > 100) {
+        return content;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract meta description as fallback
+ */
+function extractMetaDescription(html: string): string | null {
+  const patterns = [
+    /<meta name="description" content="([^"]+)"/i,
+    /<meta property="og:description" content="([^"]+)"/i,
+    /<meta name="twitter:description" content="([^"]+)"/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match && match[1].length > 50) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract content from main div patterns
+ */
+function extractMainDivContent(html: string): string | null {
+  const patterns = [
+    /<div[^>]*class="[^"]*story[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*news[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*id="[^"]*main[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      const content = cleanHTML(match[1]);
+      if (content.length > 100) {
+        return content;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract paragraphs as last resort
+ */
+function extractParagraphs(html: string): string | null {
+  const paragraphs = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
+  
+  let content = '';
+  for (const p of paragraphs.slice(0, 10)) { // Limit to first 10 paragraphs
+    const text = cleanHTML(p);
+    if (text.length > 30) { // Only include substantial paragraphs
+      content += text + '\n\n';
+    }
+  }
+  
+  return content.trim().length > 200 ? content.trim() : null;
+}
+
+/**
+ * Clean HTML content
+ */
+function cleanHTML(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove styles
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '') // Remove headers
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footers
+    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '') // Remove sidebars
+    .replace(/<div[^>]*class="[^"]*ad[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '') // Remove ads
+    .replace(/<div[^>]*class="[^"]*social[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '') // Remove social
+    .replace(/<div[^>]*class="[^"]*share[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '') // Remove share buttons
+    .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
+    .replace(/&[^;]+;/g, ' ') // Remove HTML entities
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
 }
 
 /**
@@ -495,26 +603,46 @@ async function processWithAI(article: Article, env: Env): Promise<Article> {
       return enhanceArticleBasic(article);
     }
 
-    const prompt = `
-You are a professional Kenyan news editor. Analyze this news article and provide:
+    // Validate content length - skip if too short
+    if (article.content.length < 50) {
+      console.log('⏭️ Skipping AI processing - content too short');
+      return enhanceArticleBasic(article);
+    }
 
-1. A compelling 2-3 sentence summary that captures the essence and impact
-2. The most appropriate category: Politics, Business, Technology, Sports, or Entertainment  
-3. A well-structured, engaging article rewrite (300-500 words) with:
-   - Strong opening paragraph
-   - Key details and context
-   - Quotes if available
-   - Impact/significance
-   - Professional news writing style
+    const improvedPrompt = `
+Classify the following Kenyan news article into one of these categories:
 
+- Politics: Government, elections, policies, international relations, ministers, parliament, president, governors, MPs, legislation, democracy, voting, campaigns
+- Business: Finance, economy, trade, markets, companies, startups, funding, banking, investment, revenue, profit, commercial, industry, corporate
+- Entertainment: Music, celebrities, movies, culture, lifestyle, arts, festivals, concerts, artists, actors, musicians, shows, performances, cinema, theater
+- Sports: Football, athletics, cricket, rugby, sports events, marathons, olympics, FIFA, athletes, championships, tournaments, soccer, running, swimming
+- Technology: Gadgets, internet, startups, innovation, telecom, digital, software, mobile, AI, quantum, fintech, blockchain, cyber, data, computing
+
+After classification, rewrite the article for uniqueness, SEO optimization, and Kenyan audience.
+
+Follow this structure:
+1. Category on the first line (exact category name)
+2. New Title (engaging and SEO-friendly)
+3. Body content rewritten (300-500 words)
+4. "Why it matters" section
+5. "The Big Picture" section (3 bullet points)
+
+Here is the article:
 Title: ${article.title}
-Original Content: ${article.content}
+Content: ${article.content}
 
-Respond in JSON format:
+IMPORTANT: 
+- Only use the exact category names listed above
+- If content is unclear, default to "Politics"
+- Ensure the rewritten content is substantial and informative
+- Focus on Kenyan context and relevance
+
+Respond in this exact format:
 {
-  "summary": "Compelling 2-3 sentence summary",
-  "category": "Most appropriate category",
-  "enhanced_content": "Full rewritten article with proper structure and engaging content"
+  "category": "Exact category name from the list",
+  "title": "New engaging title",
+  "summary": "2-3 sentence compelling summary",
+  "enhanced_content": "Full rewritten article with Why it matters and The Big Picture sections"
 }
 `;
 
@@ -531,15 +659,15 @@ Respond in JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a professional news editor specializing in Kenyan news. Write engaging, informative articles with proper structure and compelling content.'
+            content: 'You are a professional Kenyan news editor. Classify articles accurately and rewrite them with proper structure, engaging content, and Kenyan context. Always use the exact category names provided.'
           },
           {
             role: 'user',
-            content: prompt
+            content: improvedPrompt
           }
         ],
-        max_tokens: 1500,
-        temperature: 0.4
+        max_tokens: 2000,
+        temperature: 0.3
       })
     });
 
@@ -552,25 +680,37 @@ Respond in JSON format:
           // Try to parse JSON response
           const parsed = JSON.parse(aiResponse);
           
+          // Validate category
+          const validCategories = ['Politics', 'Business', 'Technology', 'Sports', 'Entertainment'];
+          const category = validCategories.includes(parsed.category) ? parsed.category : 'Politics';
+          
+          // Validate content length
+          const enhancedContent = parsed.enhanced_content && parsed.enhanced_content.length > 100 
+            ? parsed.enhanced_content 
+            : article.content;
+          
           return {
             ...article,
+            title: parsed.title || article.title,
             summary: parsed.summary || article.summary,
-            category: parsed.category || categorizeContent(article.title + ' ' + article.content),
-            content: parsed.enhanced_content || article.content
+            category: category,
+            content: enhancedContent
           };
         } catch (parseError) {
-          console.error('Error parsing AI response, using fallback:', parseError);
+          console.error('Error parsing AI response, trying fallback extraction:', parseError);
           
-          // Fallback: try to extract content even if JSON parsing fails
+          // Enhanced fallback parsing
+          const categoryMatch = aiResponse.match(/"category":\s*"(Politics|Business|Technology|Sports|Entertainment)"/i);
+          const titleMatch = aiResponse.match(/"title":\s*"([^"]+)"/);
           const summaryMatch = aiResponse.match(/"summary":\s*"([^"]+)"/);
-          const categoryMatch = aiResponse.match(/"category":\s*"([^"]+)"/);
           const contentMatch = aiResponse.match(/"enhanced_content":\s*"([^"]+)"/);
           
           return {
             ...article,
+            title: titleMatch ? titleMatch[1] : article.title,
             summary: summaryMatch ? summaryMatch[1] : article.summary,
-            category: categoryMatch ? categoryMatch[1] : categorizeContent(article.title + ' ' + article.content),
-            content: contentMatch ? contentMatch[1] : article.content
+            category: categoryMatch ? categoryMatch[1] : categorizeContentAdvanced(article.title + ' ' + article.content),
+            content: contentMatch && contentMatch[1].length > 100 ? contentMatch[1] : article.content
           };
         }
       }
