@@ -35,6 +35,28 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
   )
 }
 
+function getCategoryBackgroundImage(category: string): string {
+  const backgroundImages: { [key: string]: string } = {
+    politics: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200&h=600&fit=crop',
+    business: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&h=600&fit=crop',
+    technology: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=1200&h=600&fit=crop',
+    sports: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&h=600&fit=crop',
+    entertainment: 'https://images.unsplash.com/photo-1489599904472-af35ff2c7c3f?w=1200&h=600&fit=crop'
+  }
+  return backgroundImages[category] || backgroundImages.politics
+}
+
+function getCategoryGradient(category: string): string {
+  const gradients: { [key: string]: string } = {
+    politics: 'from-blue-600 to-indigo-800',
+    business: 'from-green-600 to-emerald-800',
+    technology: 'from-purple-600 to-violet-800',
+    sports: 'from-orange-600 to-red-800',
+    entertainment: 'from-pink-600 to-rose-800'
+  }
+  return gradients[category] || gradients.politics
+}
+
 function ClientCategoryPage({ category, categorySlug }: { category: string, categorySlug: string }) {
   const categoryEmojis: { [key: string]: string } = {
     politics: '🏛️',
@@ -181,15 +203,26 @@ function ClientCategoryPage({ category, categorySlug }: { category: string, cate
         </ol>
       </nav>
 
-      {/* Category Header */}
-      <div className="text-center mb-12">
-        <div className="text-6xl mb-4">{categoryEmojis[categorySlug]}</div>
-        <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4">
-          {category} News
-        </h1>
-        <p className="text-xl text-text-secondary max-w-3xl mx-auto">
-          {categoryDescriptions[categorySlug]}
-        </p>
+      {/* Category Header with Background */}
+      <div className="relative mb-12 -mx-4 md:-mx-8 lg:-mx-12">
+        <div className={`relative h-80 md:h-96 bg-gradient-to-r ${getCategoryGradient(categorySlug)} overflow-hidden rounded-lg`}>
+          <div 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
+            style={{ backgroundImage: `url(${getCategoryBackgroundImage(categorySlug)})` }}
+          ></div>
+          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+          <div className="relative z-10 flex items-center justify-center h-full text-center px-4">
+            <div>
+              <div className="text-6xl md:text-7xl mb-4">{categoryEmojis[categorySlug]}</div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4">
+                {category} News
+              </h1>
+              <p className="text-xl md:text-2xl text-gray-200 max-w-3xl mx-auto">
+                {categoryDescriptions[categorySlug]}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Articles Container */}
