@@ -1,0 +1,659 @@
+/**
+ * Pulse News Cloudflare Worker
+ * Automated news collection and processing for Kenyan news sources
+ * 
+ * Features:
+ * - RSS feed processing from Kenyan news sources
+ * - GNews API integration for additional coverage
+ * - AI-powered content summarization and categorization
+ * - Duplicate detection and filtering
+ * - Automated database storage via Supabase
+ * - KV storage for caching and state management
+ */
+
+interface Env {
+  KV_NAMESPACE: KVNamespace;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_KEY: string;
+  OPENROUTER_API_KEY: string;
+  NEWS_API_KEY?: string;
+  GUARDIAN_API_KEY?: string;
+}
+
+interface Article {
+  title: string;
+  slug: string;
+  content: string;
+  summary: string;
+  category: string;
+  source_url: string;
+  image_url?: string;
+  published_at: string;
+}
+
+interface ProcessingStats {
+  rss_articles: number;
+  gnews_articles: number;
+  unique_articles: number;
+  ai_processed: number;
+  saved_articles: number;
+  errors: number;
+  execution_time: number;
+}
+
+// Kenyan news RSS feeds - optimized for reliable sources
+const RSS_FEEDS = [
+  'https://www.nation.co.ke/kenya/news/rss',
+  'https://www.standardmedia.co.ke/rss/headlines.php',
+  'https://www.the-star.co.ke/rss',
+  'https://www.kbc.co.ke/feed/',
+  'https://www.capitalfm.co.ke/news/feed/',
+  'https://www.businessdailyafrica.com/bd/corporate/companies/rss',
+  'https://www.theeastafrican.co.ke/tea/news/east-africa/rss'
+];
+
+// Category classification keywords
+const CATEGORY_KEYWORDS = {
+  'Politics': [
+    'government', 'parliament', 'election', 'political', 'minister', 'president', 
+    'governor', 'senator', 'mp', 'cabinet', 'uhuru', 'ruto', 'raila', 'policy',
+    'legislation', 'democracy', 'voting', 'campaign', 'coalition'
+  ],
+  'Business': [
+    'business', 'economy', 'financial', 'market', 'investment', 'company', 
+    'startup', 'funding', 'trade', 'banking', 'finance', 'revenue', 'profit',
+    'economic', 'commercial', 'industry', 'corporate', 'entrepreneur'
+  ],
+  'Technology': [
+    'technology', 'tech', 'digital', 'innovation', 'software', 'internet', 
+    'mobile', 'ai', 'quantum', 'startup', 'fintech', 'blockchain', 'cyber',
+    'data', 'computing', 'telecommunications', 'innovation', 'digital'
+  ],
+  'Sports': [
+    'sports', 'football', 'athletics', 'marathon', 'rugby', 'basketball', 
+    'cricket', 'olympics', 'fifa', 'athlete', 'championship', 'tournament',
+    'soccer', 'running', 'swimming', 'volleyball', 'tennis'
+  ],
+  'Entertainment': [
+    'entertainment', 'music', 'film', 'movie', 'celebrity', 'arts', 'culture', 
+    'festival', 'concert', 'artist', 'actor', 'musician', 'show', 'performance',
+    'cinema', 'theater', 'comedy', 'drama'
+  ]
+};
+
+export default {
+  /**
+   * Scheduled event handler - runs every 15 minutes
+   */
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const startTime = Date.now();
+    const stats: ProcessingStats = {
+      rss_articles: 0,
+      gnews_articles: 0,
+      unique_articles: 0,
+      ai_processed: 0,
+      saved_articles: 0,
+      errors: 0,
+      execution_time: 0
+    };
+
+    console.log('🚀 Pulse News Worker started at:', new Date().toISOString());
+    
+    try {
+      // Step 1: Process RSS feeds
+      console.log('📰 Processing RSS feeds...');
+      const rssArticles = await processRSSFeeds(env);
+      stats.rss_articles = rssArticles.length;
+      console.log(`📰 Processed ${rssArticles.length} articles from RSS feeds`);
+
+      // Step 2: Process GNews API as fallback/supplement
+      console.log('📡 Processing GNews API...');
+      const gnewsArticles = await processGNewsAPI(env);
+      stats.gnews_articles = gnewsArticles.length;
+      console.log(`📡 Processed ${gnewsArticles.length} articles from GNews API`);
+
+      // Step 3: Combine and deduplicate
+      console.log('🔍 Filtering unique articles...');
+      const allArticles = [...rssArticles, ...gnewsArticles];
+      const uniqueArticles = await filterUniqueArticles(allArticles, env);
+      stats.unique_articles = uniqueArticles.length;
+      console.log(`✨ ${uniqueArticles.length} unique articles after deduplication`);
+
+      // Step 4: Process with AI and save to database
+      console.log('🤖 Processing articles with AI...');
+      for (const article of uniqueArticles) {
+        try {
+          const processedArticle = await processWithAI(article, env);
+          stats.ai_processed++;
+          
+          const saved = await saveToSupabase(processedArticle, env);
+          if (saved) {
+            stats.saved_articles++;
+            // Cache the URL to prevent reprocessing
+            await env.KV_NAMESPACE.put(
+              `processed:${hashUrl(article.source_url)}`, 
+              'true', 
+              { expirationTtl: 86400 * 7 } // 7 days
+            );
+          }
+        } catch (error) {
+          stats.errors++;
+          console.error('Error processing article:', error);
+        }
+      }
+
+      // Step 5: Update statistics and cleanup
+      stats.execution_time = Date.now() - startTime;
+      await updateProcessingStats(stats, env);
+      
+      console.log('✅ Worker execution completed successfully');
+      console.log(`📊 Stats: ${stats.saved_articles} saved, ${stats.errors} errors, ${stats.execution_time}ms`);
+      
+    } catch (error) {
+      stats.errors++;
+      stats.execution_time = Date.now() - startTime;
+      console.error('❌ Worker execution failed:', error);
+      
+      // Save error stats
+      await updateProcessingStats(stats, env);
+      throw error;
+    }
+  },
+
+  /**
+   * HTTP request handler for manual triggers and health checks
+   */
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    
+    // Health check endpoint
+    if (url.pathname === '/health') {
+      const lastRun = await env.KV_NAMESPACE.get('last_run');
+      const stats = await env.KV_NAMESPACE.get('processing_stats');
+      
+      return new Response(JSON.stringify({
+        status: 'healthy',
+        lastRun: lastRun,
+        stats: stats ? JSON.parse(stats) : null,
+        timestamp: new Date().toISOString(),
+        version: '1.0.0'
+      }), {
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    // Manual trigger endpoint
+    if (url.pathname === '/trigger' && request.method === 'POST') {
+      const event = { scheduledTime: Date.now() } as ScheduledEvent;
+      const ctx = { 
+        waitUntil: (promise: Promise<any>) => promise,
+        passThroughOnException: () => {}
+      } as ExecutionContext;
+      
+      try {
+        await this.scheduled(event, env, ctx);
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Worker executed successfully',
+          timestamp: new Date().toISOString()
+        }), {
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }), {
+          status: 500,
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+    }
+
+    // Stats endpoint
+    if (url.pathname === '/stats') {
+      const stats = await env.KV_NAMESPACE.get('processing_stats');
+      const lastRun = await env.KV_NAMESPACE.get('last_run');
+      
+      return new Response(JSON.stringify({
+        stats: stats ? JSON.parse(stats) : null,
+        lastRun: lastRun,
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    return new Response('Pulse News Worker v1.0.0\n\nEndpoints:\n- GET /health - Health check\n- POST /trigger - Manual execution\n- GET /stats - Processing statistics', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+};
+
+/**
+ * Process RSS feeds from Kenyan news sources
+ */
+async function processRSSFeeds(env: Env): Promise<Article[]> {
+  const articles: Article[] = [];
+  
+  for (const feedUrl of RSS_FEEDS) {
+    try {
+      console.log(`📡 Fetching RSS feed: ${feedUrl}`);
+      
+      const response = await fetch(feedUrl, {
+        headers: {
+          'User-Agent': 'PulseNews/1.0 (https://pulsenews.publicvm.com)',
+          'Accept': 'application/rss+xml, application/xml, text/xml'
+        },
+        cf: {
+          cacheTtl: 300, // Cache for 5 minutes
+          cacheEverything: true
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn(`RSS feed failed: ${feedUrl} - ${response.status}`);
+        continue;
+      }
+      
+      const xmlText = await response.text();
+      const feedArticles = parseRSSFeed(xmlText, feedUrl);
+      articles.push(...feedArticles);
+      
+      console.log(`��� Parsed ${feedArticles.length} articles from ${feedUrl}`);
+      
+    } catch (error) {
+      console.error(`Error processing RSS feed ${feedUrl}:`, error);
+    }
+  }
+  
+  return articles;
+}
+
+/**
+ * Parse RSS XML and extract articles
+ */
+function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
+  const articles: Article[] = [];
+  
+  try {
+    // Simple XML parsing for RSS items
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+    const items = xmlText.match(itemRegex) || [];
+    
+    for (const item of items.slice(0, 10)) { // Limit to 10 articles per feed
+      try {
+        const title = extractXMLContent(item, 'title');
+        const link = extractXMLContent(item, 'link');
+        const description = extractXMLContent(item, 'description');
+        const pubDate = extractXMLContent(item, 'pubDate');
+        const imageUrl = extractImageFromContent(item);
+        
+        if (title && link && description) {
+          articles.push({
+            title: cleanText(title),
+            slug: generateSlug(title),
+            content: cleanText(description),
+            summary: generateSummary(cleanText(description)),
+            category: categorizeContent(title + ' ' + description),
+            source_url: link,
+            image_url: imageUrl,
+            published_at: pubDate ? parseDate(pubDate) : new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing RSS item:', error);
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing RSS feed:', error);
+  }
+  
+  return articles;
+}
+
+/**
+ * Process GNews API for additional coverage
+ */
+async function processGNewsAPI(env: Env): Promise<Article[]> {
+  if (!env.NEWS_API_KEY) {
+    console.log('📡 GNews API key not configured, skipping');
+    return [];
+  }
+  
+  const articles: Article[] = [];
+  const queries = [
+    'Kenya news',
+    'Nairobi business', 
+    'Kenya technology',
+    'Kenya politics',
+    'Kenya sports'
+  ];
+  
+  for (const query of queries) {
+    try {
+      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=ke&max=3&apikey=${env.NEWS_API_KEY}`;
+      
+      const response = await fetch(url, {
+        cf: {
+          cacheTtl: 600, // Cache for 10 minutes
+          cacheEverything: true
+        }
+      });
+      
+      if (!response.ok) {
+        console.warn(`GNews API failed for query "${query}": ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      for (const article of data.articles || []) {
+        articles.push({
+          title: article.title,
+          slug: generateSlug(article.title),
+          content: article.content || article.description,
+          summary: article.description,
+          category: categorizeContent(article.title + ' ' + article.description),
+          source_url: article.url,
+          image_url: article.image,
+          published_at: new Date(article.publishedAt).toISOString()
+        });
+      }
+      
+      // Rate limiting - wait between requests
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+    } catch (error) {
+      console.error(`Error processing GNews query ${query}:`, error);
+    }
+  }
+  
+  return articles;
+}
+
+/**
+ * Filter out duplicate articles using KV storage and similarity matching
+ */
+async function filterUniqueArticles(articles: Article[], env: Env): Promise<Article[]> {
+  const unique: Article[] = [];
+  
+  for (const article of articles) {
+    // Check if we've already processed this URL
+    const urlHash = hashUrl(article.source_url);
+    const processed = await env.KV_NAMESPACE.get(`processed:${urlHash}`);
+    
+    if (!processed) {
+      // Check for similar titles to avoid duplicates
+      const isDuplicate = unique.some(existing => 
+        similarity(existing.title, article.title) > 0.85
+      );
+      
+      if (!isDuplicate) {
+        unique.push(article);
+      }
+    }
+  }
+  
+  return unique;
+}
+
+/**
+ * Process article with AI for summarization and categorization
+ */
+async function processWithAI(article: Article, env: Env): Promise<Article> {
+  try {
+    const prompt = `
+Analyze this Kenyan news article and provide:
+1. A concise 2-3 sentence summary highlighting the key points
+2. The most appropriate category: Politics, Business, Technology, Sports, or Entertainment
+3. Enhanced content with proper formatting and structure
+
+Article Title: ${article.title}
+Article Content: ${article.content}
+
+Respond in JSON format:
+{
+  "summary": "2-3 sentence summary",
+  "category": "Most appropriate category",
+  "enhanced_content": "Well-formatted article content with proper structure"
+}
+`;
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://pulsenews.publicvm.com',
+        'X-Title': 'Pulse News'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a professional news editor specializing in Kenyan news. Provide accurate, concise summaries and appropriate categorization.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content;
+      
+      if (aiResponse) {
+        try {
+          const parsed = JSON.parse(aiResponse);
+          return {
+            ...article,
+            summary: parsed.summary || article.summary,
+            category: parsed.category || article.category,
+            content: parsed.enhanced_content || article.content
+          };
+        } catch (parseError) {
+          console.error('Error parsing AI response:', parseError);
+        }
+      }
+    } else {
+      console.warn('AI processing failed:', response.status);
+    }
+  } catch (error) {
+    console.error('Error processing with AI:', error);
+  }
+  
+  return article; // Return original if AI processing fails
+}
+
+/**
+ * Save processed article to Supabase database
+ */
+async function saveToSupabase(article: Article, env: Env): Promise<boolean> {
+  try {
+    const response = await fetch(`${env.SUPABASE_URL}/rest/v1/articles`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'apikey': env.SUPABASE_SERVICE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        title: article.title,
+        slug: article.slug,
+        content: article.content,
+        summary: article.summary,
+        category: article.category,
+        source_url: article.source_url,
+        image_url: article.image_url,
+        published_at: article.published_at,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      console.log(`✅ Saved article: ${article.title}`);
+      return true;
+    } else {
+      const error = await response.text();
+      console.error(`❌ Failed to save article: ${error}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error saving to Supabase:', error);
+    return false;
+  }
+}
+
+/**
+ * Update processing statistics in KV storage
+ */
+async function updateProcessingStats(stats: ProcessingStats, env: Env): Promise<void> {
+  try {
+    await env.KV_NAMESPACE.put('processing_stats', JSON.stringify(stats));
+    await env.KV_NAMESPACE.put('last_run', new Date().toISOString());
+  } catch (error) {
+    console.error('Error updating stats:', error);
+  }
+}
+
+// Utility functions
+function extractXMLContent(xml: string, tag: string): string {
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const match = xml.match(regex);
+  return match ? match[1].trim() : '';
+}
+
+function extractImageFromContent(xml: string): string | undefined {
+  // Try to extract image from various RSS formats
+  const patterns = [
+    /<media:content[^>]*url="([^"]*)"[^>]*>/i,
+    /<enclosure[^>]*url="([^"]*)"[^>]*type="image/i,
+    /<img[^>]*src="([^"]*)"[^>]*>/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = xml.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return undefined;
+}
+
+function cleanText(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/&[^;]+;/g, ' ') // Remove HTML entities
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+}
+
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .substring(0, 100)
+    .trim();
+}
+
+function generateSummary(content: string): string {
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  return sentences.slice(0, 2).join('. ').trim() + (sentences.length > 2 ? '.' : '');
+}
+
+function categorizeContent(content: string): string {
+  const lowerContent = content.toLowerCase();
+  let bestCategory = 'Politics';
+  let maxMatches = 0;
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    const matches = keywords.filter(keyword => lowerContent.includes(keyword)).length;
+    if (matches > maxMatches) {
+      maxMatches = matches;
+      bestCategory = category;
+    }
+  }
+  
+  return bestCategory;
+}
+
+function parseDate(dateString: string): string {
+  try {
+    return new Date(dateString).toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function hashUrl(url: string): string {
+  // Simple hash function for URL
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    const char = url.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function similarity(str1: string, str2: string): number {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}

@@ -1,0 +1,33 @@
+{
+  "name": "pulse-news-worker",
+  "version": "1.0.0",
+  "description": "Automated news collection and processing worker for Pulse News",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "deploy:prod": "wrangler deploy --env production",
+    "test": "wrangler dev --local",
+    "logs": "wrangler tail",
+    "kv:list": "wrangler kv:namespace list",
+    "kv:create": "wrangler kv:namespace create KV_NAMESPACE",
+    "secret:put": "wrangler secret put"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "news",
+    "automation",
+    "ai",
+    "supabase"
+  ],
+  "author": "Pulse News Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231218.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.22.1"
+  },
+  "dependencies": {}
+}
