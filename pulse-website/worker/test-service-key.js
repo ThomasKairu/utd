@@ -2,8 +2,8 @@
  * Test database connection with service role key
  */
 
-const SUPABASE_URL = 'https://lnmrpwmtvscsczslzvec.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxubXJwd210dnNjc2N6c2x6dmVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDE0NTUyMCwiZXhwIjoyMDY5NzIxNTIwfQ.Q8K3ZPO13CLQtq3c-xbRW62sWh3jd8ClbzexZGfduXo';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'your-service-key-here';
 
 async function testServiceKeyConnection() {
   console.log('🔑 Testing Database Connection with Service Role Key...');

@@ -29,6 +29,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# sensitive test files
+worker/test-service-key.js
+
 # vercel
 .vercel
 
