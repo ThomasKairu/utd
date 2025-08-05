@@ -106,6 +106,11 @@ export default function HomePage() {
   const [articles, setArticles] = useState<Article[]>(mockArticles)
   const [loading, setLoading] = useState(false)
 
+  // Force component refresh for deployment
+  useEffect(() => {
+    console.log('Pulse News - Modern Design Loaded')
+  }, [])
+
   const featuredArticle = articles[0]
   const heroSideArticles = articles.slice(1, 3)
   const remainingArticles = articles.slice(3)

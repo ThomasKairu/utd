@@ -8,7 +8,7 @@ const nextConfig = {
   // Removed assetPrefix and basePath for custom domain deployment
   // Custom domains don't need these prefixes
   distDir: 'out',
-  generateBuildId: () => 'build',
+  generateBuildId: () => `pulse-${Date.now()}`,
   experimental: {
     esmExternals: false
   },
@@ -18,6 +18,10 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  // Force cache busting
+  env: {
+    BUILD_TIME: new Date().toISOString(),
   }
 }
 
