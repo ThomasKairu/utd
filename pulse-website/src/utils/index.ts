@@ -74,7 +74,7 @@ export const getBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_BASE_URL || 'https://thomaskairu.github.io/utd';
+  return process.env.NEXT_PUBLIC_BASE_URL || 'https://www.pulsenews.publicvm.com';
 };
 
 // Category utilities
