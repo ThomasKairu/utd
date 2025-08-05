@@ -41,15 +41,13 @@ interface ProcessingStats {
   execution_time: number;
 }
 
-// Kenyan news RSS feeds - optimized for reliable sources
+// Kenyan news RSS feeds - updated reliable sources
 const RSS_FEEDS = [
-  'https://www.nation.co.ke/kenya/news/rss',
-  'https://www.standardmedia.co.ke/rss/headlines.php',
-  'https://www.the-star.co.ke/rss',
-  'https://www.kbc.co.ke/feed/',
-  'https://www.capitalfm.co.ke/news/feed/',
-  'https://www.businessdailyafrica.com/bd/corporate/companies/rss',
-  'https://www.theeastafrican.co.ke/tea/news/east-africa/rss'
+  'https://ntvkenya.co.ke/feed',
+  'https://www.capitalfm.co.ke/news/rss/',
+  'https://www.pulselive.co.ke/rss',
+  'https://www.ghafla.com/ke/feed/',
+  'https://www.nation.co.ke/kenya/news/rss' // Keep as backup
 ];
 
 // Category classification keywords
@@ -327,7 +325,7 @@ function parseRSSFeed(xmlText: string, sourceUrl: string): Article[] {
 }
 
 /**
- * Process GNews API for additional coverage
+ * Process GNews API for additional coverage - optimized for rate limits
  */
 async function processGNewsAPI(env: Env): Promise<Article[]> {
   if (!env.NEWS_API_KEY) {
@@ -335,22 +333,31 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
     return [];
   }
   
+  // Check if we should use GNews (only if RSS gave us few articles)
+  const lastGNewsCall = await env.KV_NAMESPACE.get('last_gnews_call');
+  const now = Date.now();
+  const oneHour = 60 * 60 * 1000;
+  
+  if (lastGNewsCall && (now - parseInt(lastGNewsCall)) < oneHour) {
+    console.log('📡 GNews API rate limit protection - skipping this run');
+    return [];
+  }
+  
   const articles: Article[] = [];
+  
+  // Use targeted queries for better results
   const queries = [
-    'Kenya news',
-    'Nairobi business', 
-    'Kenya technology',
-    'Kenya politics',
-    'Kenya sports'
+    'Kenya breaking news',
+    'Nairobi latest news'
   ];
   
-  for (const query of queries) {
+  for (const query of queries.slice(0, 1)) { // Limit to 1 query to save API calls
     try {
-      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=ke&max=3&apikey=${env.NEWS_API_KEY}`;
+      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=ke&max=5&apikey=${env.NEWS_API_KEY}`;
       
       const response = await fetch(url, {
         cf: {
-          cacheTtl: 600, // Cache for 10 minutes
+          cacheTtl: 1800, // Cache for 30 minutes
           cacheEverything: true
         }
       });
@@ -363,10 +370,13 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
       const data = await response.json();
       
       for (const article of data.articles || []) {
+        // Fetch full content from the article URL
+        const fullContent = await fetchFullArticleContent(article.url);
+        
         articles.push({
           title: article.title,
           slug: generateSlug(article.title),
-          content: article.content || article.description,
+          content: fullContent || article.content || article.description,
           summary: article.description,
           category: categorizeContent(article.title + ' ' + article.description),
           source_url: article.url,
@@ -375,8 +385,11 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
         });
       }
       
+      // Update last call timestamp
+      await env.KV_NAMESPACE.put('last_gnews_call', now.toString());
+      
       // Rate limiting - wait between requests
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
     } catch (error) {
       console.error(`Error processing GNews query ${query}:`, error);
@@ -384,6 +397,65 @@ async function processGNewsAPI(env: Env): Promise<Article[]> {
   }
   
   return articles;
+}
+
+/**
+ * Fetch full article content from URL
+ */
+async function fetchFullArticleContent(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      },
+      cf: {
+        cacheTtl: 3600, // Cache for 1 hour
+        cacheEverything: true
+      }
+    });
+    
+    if (!response.ok) return null;
+    
+    const html = await response.text();
+    
+    // Extract main content using common patterns
+    const contentPatterns = [
+      /<article[^>]*>([\s\S]*?)<\/article>/i,
+      /<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*post[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<main[^>]*>([\s\S]*?)<\/main>/i,
+      /<div[^>]*class="[^"]*story[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    ];
+    
+    for (const pattern of contentPatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        let content = match[1];
+        
+        // Clean up the content
+        content = content
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove styles
+          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
+          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '') // Remove headers
+          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footers
+          .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '') // Remove sidebars
+          .replace(/<div[^>]*class="[^"]*ad[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '') // Remove ads
+          .replace(/<[^>]*>/g, ' ') // Remove remaining HTML tags
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+        
+        if (content.length > 200) {
+          return content.substring(0, 2000); // Limit content length
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching full content:', error);
+    return null;
+  }
 }
 
 /**
@@ -417,20 +489,32 @@ async function filterUniqueArticles(articles: Article[], env: Env): Promise<Arti
  */
 async function processWithAI(article: Article, env: Env): Promise<Article> {
   try {
-    const prompt = `
-Analyze this Kenyan news article and provide:
-1. A concise 2-3 sentence summary highlighting the key points
-2. The most appropriate category: Politics, Business, Technology, Sports, or Entertainment
-3. Enhanced content with proper formatting and structure
+    // Check if we have an OpenRouter API key
+    if (!env.OPENROUTER_API_KEY) {
+      console.log('🤖 OpenRouter API key not configured, using basic processing');
+      return enhanceArticleBasic(article);
+    }
 
-Article Title: ${article.title}
-Article Content: ${article.content}
+    const prompt = `
+You are a professional Kenyan news editor. Analyze this news article and provide:
+
+1. A compelling 2-3 sentence summary that captures the essence and impact
+2. The most appropriate category: Politics, Business, Technology, Sports, or Entertainment  
+3. A well-structured, engaging article rewrite (300-500 words) with:
+   - Strong opening paragraph
+   - Key details and context
+   - Quotes if available
+   - Impact/significance
+   - Professional news writing style
+
+Title: ${article.title}
+Original Content: ${article.content}
 
 Respond in JSON format:
 {
-  "summary": "2-3 sentence summary",
+  "summary": "Compelling 2-3 sentence summary",
   "category": "Most appropriate category",
-  "enhanced_content": "Well-formatted article content with proper structure"
+  "enhanced_content": "Full rewritten article with proper structure and engaging content"
 }
 `;
 
@@ -447,15 +531,15 @@ Respond in JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a professional news editor specializing in Kenyan news. Provide accurate, concise summaries and appropriate categorization.'
+            content: 'You are a professional news editor specializing in Kenyan news. Write engaging, informative articles with proper structure and compelling content.'
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        max_tokens: 1000,
-        temperature: 0.3
+        max_tokens: 1500,
+        temperature: 0.4
       })
     });
 
@@ -465,15 +549,29 @@ Respond in JSON format:
       
       if (aiResponse) {
         try {
+          // Try to parse JSON response
           const parsed = JSON.parse(aiResponse);
+          
           return {
             ...article,
             summary: parsed.summary || article.summary,
-            category: parsed.category || article.category,
+            category: parsed.category || categorizeContent(article.title + ' ' + article.content),
             content: parsed.enhanced_content || article.content
           };
         } catch (parseError) {
-          console.error('Error parsing AI response:', parseError);
+          console.error('Error parsing AI response, using fallback:', parseError);
+          
+          // Fallback: try to extract content even if JSON parsing fails
+          const summaryMatch = aiResponse.match(/"summary":\s*"([^"]+)"/);
+          const categoryMatch = aiResponse.match(/"category":\s*"([^"]+)"/);
+          const contentMatch = aiResponse.match(/"enhanced_content":\s*"([^"]+)"/);
+          
+          return {
+            ...article,
+            summary: summaryMatch ? summaryMatch[1] : article.summary,
+            category: categoryMatch ? categoryMatch[1] : categorizeContent(article.title + ' ' + article.content),
+            content: contentMatch ? contentMatch[1] : article.content
+          };
         }
       }
     } else {
@@ -483,7 +581,125 @@ Respond in JSON format:
     console.error('Error processing with AI:', error);
   }
   
-  return article; // Return original if AI processing fails
+  // Fallback to basic enhancement
+  return enhanceArticleBasic(article);
+}
+
+/**
+ * Basic article enhancement without AI
+ */
+function enhanceArticleBasic(article: Article): Article {
+  // Enhance the content with basic formatting
+  let enhancedContent = article.content;
+  
+  // Add structure if content is long enough
+  if (enhancedContent.length > 200) {
+    const sentences = enhancedContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    
+    if (sentences.length > 3) {
+      // Create paragraphs
+      const paragraphs = [];
+      for (let i = 0; i < sentences.length; i += 2) {
+        const paragraph = sentences.slice(i, i + 2).join('. ').trim();
+        if (paragraph) paragraphs.push(paragraph + '.');
+      }
+      enhancedContent = paragraphs.join('\n\n');
+    }
+  }
+  
+  // Improve category classification
+  const improvedCategory = categorizeContentAdvanced(article.title + ' ' + article.content);
+  
+  // Generate better summary
+  const improvedSummary = generateAdvancedSummary(article.content);
+  
+  return {
+    ...article,
+    content: enhancedContent,
+    category: improvedCategory,
+    summary: improvedSummary
+  };
+}
+
+/**
+ * Advanced categorization with better keyword matching
+ */
+function categorizeContentAdvanced(content: string): string {
+  const lowerContent = content.toLowerCase();
+  const categoryScores: { [key: string]: number } = {};
+  
+  // Initialize scores
+  for (const category of Object.keys(CATEGORY_KEYWORDS)) {
+    categoryScores[category] = 0;
+  }
+  
+  // Score based on keyword matches with weights
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const keyword of keywords) {
+      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+      const matches = (lowerContent.match(regex) || []).length;
+      
+      // Weight keywords differently
+      let weight = 1;
+      if (keyword.length > 8) weight = 2; // Longer, more specific keywords get higher weight
+      if (['president', 'minister', 'parliament', 'government'].includes(keyword)) weight = 3;
+      if (['business', 'economy', 'financial', 'investment'].includes(keyword)) weight = 3;
+      if (['technology', 'digital', 'innovation', 'tech'].includes(keyword)) weight = 3;
+      
+      categoryScores[category] += matches * weight;
+    }
+  }
+  
+  // Find category with highest score
+  let bestCategory = 'Politics';
+  let maxScore = 0;
+  
+  for (const [category, score] of Object.entries(categoryScores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      bestCategory = category;
+    }
+  }
+  
+  return bestCategory;
+}
+
+/**
+ * Generate advanced summary
+ */
+function generateAdvancedSummary(content: string): string {
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  
+  if (sentences.length === 0) return content.substring(0, 200) + '...';
+  
+  // Take first sentence and most informative middle sentence
+  let summary = sentences[0].trim();
+  
+  if (sentences.length > 2) {
+    // Find sentence with most important keywords
+    let bestSentence = '';
+    let maxKeywords = 0;
+    
+    const importantWords = ['said', 'announced', 'revealed', 'confirmed', 'reported', 'according', 'will', 'plans', 'expected'];
+    
+    for (let i = 1; i < sentences.length - 1; i++) {
+      const sentence = sentences[i].toLowerCase();
+      const keywordCount = importantWords.filter(word => sentence.includes(word)).length;
+      
+      if (keywordCount > maxKeywords) {
+        maxKeywords = keywordCount;
+        bestSentence = sentences[i].trim();
+      }
+    }
+    
+    if (bestSentence) {
+      summary += '. ' + bestSentence;
+    } else if (sentences.length > 1) {
+      summary += '. ' + sentences[1].trim();
+    }
+  }
+  
+  return summary + '.';
 }
 
 /**
