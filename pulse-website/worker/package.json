@@ -1,0 +1,38 @@
+{
+  "name": "pulse-news-worker",
+  "version": "1.0.0",
+  "description": "Automated news processing worker for Pulse UTD News",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test": "wrangler dev --test-scheduled",
+    "kv:create": "wrangler kv:namespace create KV_NAMESPACE",
+    "kv:create:preview": "wrangler kv:namespace create KV_NAMESPACE --preview",
+    "secret:openrouter": "wrangler secret put OPENROUTER_API_KEY",
+    "secret:scraper": "wrangler secret put SCRAPER_API_KEY",
+    "secret:supabase": "wrangler secret put SUPABASE_SERVICE_KEY",
+    "trigger": "curl -X POST https://pulse-news-worker.your-subdomain.workers.dev/trigger",
+    "status": "curl https://pulse-news-worker.your-subdomain.workers.dev/status"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "news",
+    "automation",
+    "rss",
+    "ai",
+    "scraping"
+  ],
+  "author": "Pulse UTD News",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.94.0"
+  },
+  "dependencies": {}
+}
