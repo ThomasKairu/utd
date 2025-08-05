@@ -23,7 +23,7 @@ export async function fetchAndFilterArticles(lastTimestamp: number): Promise<Art
       console.log(`📡 Fetching RSS feed: ${feedUrl}`);
       const response = await fetch(feedUrl, {
         headers: {
-          'User-Agent': 'PulseUTDNews/1.0 (+https://www.pulsenews.publicvm.com)',
+          'User-Agent': 'PulseUTDNews/1.0 (+https://pulse.utdnews.com)',
           'Accept': 'application/rss+xml, application/xml, text/xml',
         },
         // Note: cf property is Cloudflare-specific and may not be available in all environments
@@ -95,9 +95,6 @@ function parseRSSFeed(xmlText: string): Article[] {
                          extractXMLContent(itemContent, 'summary');
       const guid = extractXMLContent(itemContent, 'guid') || link;
 
-      // Extract image from RSS feed
-      const imageUrl = extractImageFromRSSItem(itemContent);
-
       if (title && link && pubDate) {
         const article: Article = {
           title: cleanText(title),
@@ -110,10 +107,6 @@ function parseRSSFeed(xmlText: string): Article[] {
           article.description = cleanText(description);
         }
         
-        if (imageUrl) {
-          article.imageUrl = imageUrl;
-        }
-        
         articles.push(article);
       }
     }
@@ -122,86 +115,6 @@ function parseRSSFeed(xmlText: string): Article[] {
   }
 
   return articles;
-}
-
-/**
- * Extract image URL from RSS item content
- */
-function extractImageFromRSSItem(itemContent: string): string {
-  // Try multiple RSS image formats
-  const imagePatterns = [
-    // Media RSS namespace
-    /<media:content[^>]+url="([^"]+)"[^>]*type="image/i,
-    /<media:thumbnail[^>]+url="([^"]+)"/i,
-    /<media:content[^>]+url="([^"]+)"/i,
-    
-    // Enclosure tags for images
-    /<enclosure[^>]+type="image[^"]*"[^>]+url="([^"]+)"/i,
-    /<enclosure[^>]+url="([^"]+)"[^>]+type="image[^"]*"/i,
-    
-    // iTunes image
-    /<itunes:image[^>]+href="([^"]+)"/i,
-    
-    // Image in description/content
-    /<img[^>]+src="([^"]+)"/i,
-    
-    // WordPress featured image
-    /<wp:featuredImage>([^<]+)<\/wp:featuredImage>/i,
-    
-    // Custom image tags
-    /<image[^>]*>([^<]+)<\/image>/i,
-    /<image[^>]+url="([^"]+)"/i,
-  ];
-
-  for (const pattern of imagePatterns) {
-    const match = itemContent.match(pattern);
-    if (match && match[1]) {
-      const imageUrl = match[1].trim();
-      // Validate it's a proper image URL
-      if (isValidImageUrl(imageUrl)) {
-        return imageUrl;
-      }
-    }
-  }
-
-  return '';
-}
-
-/**
- * Validate if URL is a proper image URL
- */
-function isValidImageUrl(url: string): boolean {
-  if (!url || !url.startsWith('http')) {
-    return false;
-  }
-  
-  // Check for common image extensions
-  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff)(\?|$)/i;
-  if (imageExtensions.test(url)) {
-    return true;
-  }
-  
-  // Check for image hosting domains
-  const imageHosts = [
-    'images.unsplash.com',
-    'cdn.pixabay.com',
-    'images.pexels.com',
-    'i.imgur.com',
-    'media.gettyimages.com',
-    'cloudinary.com',
-    'amazonaws.com',
-    'googleusercontent.com',
-  ];
-  
-  try {
-    const hostname = new URL(url).hostname;
-    return imageHosts.some(host => hostname.includes(host)) || 
-           hostname.includes('image') || 
-           hostname.includes('photo') ||
-           hostname.includes('media');
-  } catch {
-    return false;
-  }
 }
 
 /**
