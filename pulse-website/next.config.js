@@ -22,23 +22,6 @@ const nextConfig = {
   // Force cache busting
   env: {
     BUILD_TIME: new Date().toISOString(),
-  },
-  // Ensure all pages are exported
-  exportPathMap: async function (
-    defaultPathMap,
-    { dev, dir, outDir, distDir, buildId }
-  ) {
-    return {
-      '/': { page: '/' },
-      '/about': { page: '/about' },
-      '/contact': { page: '/contact' },
-      '/privacy': { page: '/privacy' },
-      '/terms': { page: '/terms' },
-      '/editorial-policy': { page: '/editorial-policy' },
-      '/careers': { page: '/careers' },
-      '/cookies': { page: '/cookies' },
-      '/disclaimer': { page: '/disclaimer' },
-    }
   }
 }
 
