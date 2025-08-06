@@ -1,6 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { createClient } from '../utils/supabase/client'
 import AdBanner from './AdBanner'
 
 const FacebookIcon = () => (
@@ -26,30 +28,61 @@ const InstagramIcon = () => (
 interface TrendingNewsItem {
   title: string
   slug: string
-  imageUrl: string
+  image_url: string | null
 }
 
 export default function Sidebar() {
-  const trendingNews: TrendingNewsItem[] = [
+  const [trendingNews, setTrendingNews] = useState<TrendingNewsItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    fetchTrendingNews()
+  }, [])
+
+  async function fetchTrendingNews() {
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('title, slug, image_url')
+        .order('published_at', { ascending: false })
+        .limit(4)
+
+      if (error) {
+        console.error('Error fetching trending news:', error)
+        // Fallback to mock data
+        setTrendingNews(mockTrendingNews)
+      } else {
+        setTrendingNews(data || mockTrendingNews)
+      }
+    } catch (err) {
+      console.error('Error fetching trending news:', err)
+      setTrendingNews(mockTrendingNews)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const mockTrendingNews: TrendingNewsItem[] = [
     {
       title: "Kenya's Digital Identity System Launches Nationwide",
       slug: "kenya-digital-identity-system-2024",
-      imageUrl: "https://images.unsplash.com/photo-1600506451234-9e555c0c8d05?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwyfHxjb25mZXJlbmNlJTIwZ292ZXJubWVudCUyMG1lZXRpbmclMjBwb2xpdGljc3xlbnwwfDB8fHwxNzU0MzkzNTM3fDA&ixlib=rb-4.1.0&q=85"
+      image_url: "https://images.unsplash.com/photo-1600506451234-9e555c0c8d05?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwyfHxjb25mZXJlbmNlJTIwZ292ZXJubWVudCUyMG1lZXRpbmclMjBwb2xpdGljc3xlbnwwfDB8fHwxNzU0MzkzNTM3fDA&ixlib=rb-4.1.0&q=85"
     },
     {
       title: "Tech Startup Funding Reaches Record High",
       slug: "tech-startup-funding-record-2024",
-      imageUrl: "https://images.unsplash.com/photo-1642522029691-029b5a432954?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwyfHxidXNpbmVzcyUyMG1lZXRpbmclMjBvZmZpY2UlMjBjb3Jwb3JhdGV8ZW58MHwwfHx8MTc1NDM5MzUzN3ww&ixlib=rb-4.1.0&q=85"
+      image_url: "https://images.unsplash.com/photo-1642522029691-029b5a432954?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwyfHxidXNpbmVzcyUyMG1lZXRpbmclMjBvZmZpY2UlMjBjb3Jwb3JhdGV8ZW58MHwwfHx8MTc1NDM5MzUzN3ww&ixlib=rb-4.1.0&q=85"
     },
     {
       title: "Marathon Champions Return Home",
       slug: "marathon-champions-return-2024",
-      imageUrl: "https://images.unsplash.com/photo-1600442715978-d0268caa17f5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwxfHxmb290YmFsbCUyMHNvY2NlciUyMHN0YWRpdW0lMjBzcG9ydHN8ZW58MHwwfHxncmVlbnwxNzU0MzkzNTM3fDA&ixlib=rb-4.1.0&q=85"
+      image_url: "https://images.unsplash.com/photo-1600442715978-d0268caa17f5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHwxfHxmb290YmFsbCUyMHNvY2NlciUyMHN0YWRpdW0lMjBzcG9ydHN8ZW58MHwwfHx8Z3JlZW58MTc1NDM5MzUzN3ww&ixlib=rb-4.1.0&q=85"
     },
     {
       title: "New Infrastructure Projects Announced",
       slug: "infrastructure-projects-2024",
-      imageUrl: "https://images.unsplash.com/photo-1614793319738-bde496bbe85e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHw4fHxjb25mZXJlbmNlJTIwZ292ZXJubWVudCUyMG1lZXRpbmclMjBwb2xpdGljc3xlbnwwfDB8fHwxNzU0MzkzNTM3fDA&ixlib=rb-4.1.0&q=85"
+      image_url: "https://images.unsplash.com/photo-1614793319738-bde496bbe85e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTAwNDR8MHwxfHNlYXJjaHw4fHxjb25mZXJlbmNlJTIwZ292ZXJubWVudCUyMG1lZXRpbmclMjBwb2xpdGljc3xlbnwwfDB8fHwxNzU0MzkzNTM3fDA&ixlib=rb-4.1.0&q=85"
     }
   ]
 
@@ -60,27 +93,33 @@ export default function Sidebar() {
         <h3 className="heading-secondary text-xl text-text-primary mb-4 border-b border-gray-200 pb-2">
           Trending News
         </h3>
-        <div className="space-y-4">
-          {trendingNews.map((item, index) => (
-            <div key={index} className="flex space-x-3 group">
-              <div className="flex-shrink-0">
-                <img
-                  src={item.imageUrl}
-                  alt={item.title}
-                  className="w-16 h-16 object-cover rounded-lg"
-                />
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="spinner"></div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {trendingNews.map((item, index) => (
+              <div key={index} className="flex space-x-3 group">
+                <div className="flex-shrink-0">
+                  <img
+                    src={item.image_url || ''}
+                    alt={item.title}
+                    className="w-16 h-16 object-cover rounded-lg"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Link
+                    href={`/article/${item.slug}`}
+                    className="text-sm font-medium text-text-primary group-hover:text-pulse-red transition-colors duration-200 line-clamp-3 text-body"
+                  >
+                    {item.title}
+                  </Link>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <Link
-                  href={`/article/${item.slug}`}
-                  className="text-sm font-medium text-text-primary group-hover:text-pulse-red transition-colors duration-200 line-clamp-3 text-body"
-                >
-                  {item.title}
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Social Media Links */}

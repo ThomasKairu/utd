@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import SearchModal from './SearchModal'
 
 const SearchIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,14 +24,15 @@ const CloseIcon = () => (
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   const navigationItems = [
     { name: 'Latest', href: '/' },
-    { name: 'Politics', href: '/category/politics' },
-    { name: 'Entertainment', href: '/category/entertainment' },
-    { name: 'Sports', href: '/category/sports' },
-    { name: 'Business', href: '/category/business' },
-    { name: 'World', href: '/category/world' },
+    { name: 'Politics', href: '/?category=politics' },
+    { name: 'Entertainment', href: '/?category=entertainment' },
+    { name: 'Sports', href: '/?category=sports' },
+    { name: 'Business', href: '/?category=business' },
+    { name: 'Technology', href: '/?category=technology' },
   ]
 
   return (
@@ -64,7 +66,10 @@ export default function Header() {
             
             {/* Search and Mobile Menu */}
             <div className="flex items-center space-x-3">
-              <button className="p-2 text-gray-600 hover:text-pulse-red transition-colors duration-200">
+              <button 
+                className="p-2 text-gray-600 hover:text-pulse-red transition-colors duration-200"
+                onClick={() => setIsSearchOpen(true)}
+              >
                 <SearchIcon />
               </button>
               <button 
@@ -106,6 +111,9 @@ export default function Header() {
           </div>
         </div>
       )}
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   )
 }
