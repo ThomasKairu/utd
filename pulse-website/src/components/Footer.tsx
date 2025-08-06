@@ -35,9 +35,9 @@ export default function Footer() {
       </div>
       
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand Section */}
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-2 lg:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-pulse-red rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-lg font-roboto">P</span>
@@ -59,6 +59,18 @@ export default function Footer() {
                 <InstagramIcon />
               </a>
             </div>
+          </div>
+          
+          {/* Categories */}
+          <div>
+            <h3 className="font-semibold mb-4 heading-secondary text-lg">Categories</h3>
+            <ul className="space-y-3">
+              <li><Link href="/?category=politics" className="text-gray-300 hover:text-pulse-red transition-colors duration-200 text-body link-hover">Politics</Link></li>
+              <li><Link href="/?category=business" className="text-gray-300 hover:text-pulse-red transition-colors duration-200 text-body link-hover">Business</Link></li>
+              <li><Link href="/?category=technology" className="text-gray-300 hover:text-pulse-red transition-colors duration-200 text-body link-hover">Technology</Link></li>
+              <li><Link href="/?category=sports" className="text-gray-300 hover:text-pulse-red transition-colors duration-200 text-body link-hover">Sports</Link></li>
+              <li><Link href="/?category=entertainment" className="text-gray-300 hover:text-pulse-red transition-colors duration-200 text-body link-hover">Entertainment</Link></li>
+            </ul>
           </div>
           
           {/* Quick Links */}
