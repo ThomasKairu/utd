@@ -36,7 +36,14 @@ export const metadata: Metadata = {
     images: ['https://www.pulsenews.publicvm.com/og-image.jpg'],
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    other: [
+      { rel: 'icon', url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+      { rel: 'manifest', url: '/manifest.json' },
+    ],
   },
 }
 
@@ -48,7 +55,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="theme-color" content="#d32f2f" />
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-gray-50">
         <Header />
